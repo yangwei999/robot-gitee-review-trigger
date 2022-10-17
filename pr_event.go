@@ -37,8 +37,6 @@ func (pr prInfoOnPREvent) getHeadSHA() string {
 }
 
 func (bot *robot) processPREvent(e *sdk.PullRequestEvent, cfg *botConfig, log *logrus.Entry) error {
-	canReview := cfg.CI.NoCI
-
 	switch sdk.GetPullRequestAction(e) {
 	case sdk.PRActionOpened:
 		mr := multiError()
@@ -50,18 +48,10 @@ func (bot *robot) processPREvent(e *sdk.PullRequestEvent, cfg *botConfig, log *l
 			}
 		}
 
-		if canReview {
-			if err := bot.readyToReview(pr, cfg, log); err != nil {
-				mr.AddError(err)
-			}
-		}
 		return mr.Err()
 
 	case sdk.PRActionChangedSourceBranch:
 		var toKeep []string
-		if canReview {
-			toKeep = append(toKeep, labelCanReview)
-		}
 		return bot.resetToReview(prInfoOnPREvent{e}, cfg, toKeep, log)
 	}
 

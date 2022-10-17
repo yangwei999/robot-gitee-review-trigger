@@ -112,10 +112,6 @@ func (pa PostAction) reviewing(p *actionParameter) error {
 
 	mr := multiError()
 
-	if err := p.u(labelCanReview); err != nil {
-		mr.AddError(err)
-	}
-
 	var sr []string
 	if p.oldTips == "" || !containsSuggestedReviewer(p.oldTips) {
 		sr = pa.suggestReviewers()

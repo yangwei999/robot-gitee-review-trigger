@@ -14,14 +14,15 @@ const (
 	labelApproved      = "approved"
 	labelRequestChange = "request-change"
 
-	cmdLGTM    = "LGTM"
-	cmdLBTM    = "LBTM"
-	cmdAPPROVE = "APPROVE"
-	cmdReject  = "REJECT"
+	cmdCanReview = "CAN-REVIEW"
+	cmdLGTM      = "LGTM"
+	cmdLBTM      = "LBTM"
+	cmdAPPROVE   = "APPROVE"
+	cmdReject    = "REJECT"
 )
 
 var (
-	validCmds            = sets.NewString(cmdLGTM, cmdLBTM, cmdAPPROVE, cmdReject)
+	validCmds            = sets.NewString(cmdCanReview, cmdLGTM, cmdLBTM, cmdAPPROVE, cmdReject)
 	negativeCmds         = sets.NewString(cmdReject, cmdLBTM)
 	positiveCmds         = sets.NewString(cmdAPPROVE, cmdLGTM)
 	cmdBelongsToApprover = sets.NewString(cmdAPPROVE, cmdReject)
