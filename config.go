@@ -9,6 +9,8 @@ import (
 type configuration struct {
 	ConfigItems []botConfig `json:"config_items,omitempty"`
 
+	Email EmailConfig `json:"email"`
+
 	// CommandsEndpoint is the endpoint which enumerates the usage of commands.
 	CommandsEndpoint string `json:"commands_endpoint" required:"true"`
 
@@ -30,6 +32,7 @@ func (c *configuration) configFor(org, repo string) *botConfig {
 	if i := config.Find(org, repo, v); i >= 0 {
 		items[i].doc = c.Doc
 		items[i].commandsEndpoint = c.CommandsEndpoint
+		items[i].email = c.Email
 
 		return &items[i]
 	}
@@ -80,11 +83,21 @@ type botConfig struct {
 
 	Owner ownerConfig `json:"owner"`
 
+	ReviewerEmails map[string]string `json:"reviewer_emails"`
+
 	// NeedWelcome specifies whether to add welcome comment.
 	NeedWelcome bool `json:"need_welcome,omitempty"`
 
-	doc              string `json:"-"`
-	commandsEndpoint string `json:"-"`
+	doc              string      `json:"-"`
+	commandsEndpoint string      `json:"-"`
+	email            EmailConfig `json:"-"`
+}
+
+type EmailConfig struct {
+	AuthCode string `json:"auth_code"`
+	From     string `json:"from"`
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
 }
 
 func (c *botConfig) setDefault() {

@@ -4,8 +4,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/opensourceways/community-robot-lib/utils"
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/opensourceways/community-robot-lib/utils"
 )
 
 const (
@@ -14,14 +15,17 @@ const (
 	labelApproved      = "approved"
 	labelRequestChange = "request-change"
 
-	cmdLGTM    = "LGTM"
-	cmdLBTM    = "LBTM"
-	cmdAPPROVE = "APPROVE"
-	cmdReject  = "REJECT"
+	cmdLGTM     = "LGTM"
+	cmdLBTM     = "LBTM"
+	cmdAPPROVE  = "APPROVE"
+	cmdReject   = "REJECT"
+	cmdASSIGN   = "ASSIGN"
+	cmdUNASSIGN = "UNASSIGN"
 )
 
 var (
-	validCmds            = sets.NewString(cmdLGTM, cmdLBTM, cmdAPPROVE, cmdReject)
+	validReviewCmds      = sets.NewString(cmdLGTM, cmdLBTM, cmdAPPROVE, cmdReject)
+	validAuthorCmds      = sets.NewString(cmdASSIGN, cmdUNASSIGN)
 	negativeCmds         = sets.NewString(cmdReject, cmdLBTM)
 	positiveCmds         = sets.NewString(cmdAPPROVE, cmdLGTM)
 	cmdBelongsToApprover = sets.NewString(cmdAPPROVE, cmdReject)
@@ -41,10 +45,18 @@ func canApplyCmd(cmd string, isPRAuthor, isApprover, allowSelfApprove bool) bool
 }
 
 func parseReviewCommand(comment string) []string {
+	return parseCommand(comment, validReviewCmds)
+}
+
+func parseAuthorCommand(comment string) []string {
+	return parseCommand(comment, validAuthorCmds)
+}
+
+func parseCommand(comment string, cmds sets.String) []string {
 	r := []string{}
 	for _, match := range commandRegex.FindAllStringSubmatch(comment, -1) {
 		cmd := strings.ToUpper(match[1])
-		if validCmds.Has(cmd) {
+		if cmds.Has(cmd) {
 			r = append(r, cmd)
 		}
 	}
@@ -196,4 +208,6 @@ type iPRInfo interface {
 	hasLabel(string) bool
 	getAuthor() string
 	getHeadSHA() string
+	getUrl() string
+	getTitle() string
 }
