@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 
-	"github.com/opensourceways/go-gitee/gitee"
 	"github.com/sirupsen/logrus"
+
+	"github.com/opensourceways/go-gitee/gitee"
 )
 
 type ciConfig struct {
@@ -127,4 +128,12 @@ func (pr prInfoOnNoteEvent) getAuthor() string {
 
 func (pr prInfoOnNoteEvent) getHeadSHA() string {
 	return pr.e.GetPRHeadSha()
+}
+
+func (pr prInfoOnNoteEvent) getUrl() string {
+	return pr.e.GetURL()
+}
+
+func (pr prInfoOnNoteEvent) getTitle() string {
+	return pr.e.GetTitle()
 }
