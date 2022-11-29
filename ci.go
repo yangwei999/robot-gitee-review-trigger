@@ -88,7 +88,7 @@ func (bot *robot) handleCIStatusComment(e *gitee.NoteEvent, cfg *botConfig, log 
 	rs, r := info.doStats(stats, bot.botName)
 
 	if rs.IsEmpty() {
-		return bot.readyToReview(prInfo, cfg, log)
+		return nil
 	}
 
 	pa := PostAction{

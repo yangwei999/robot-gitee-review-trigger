@@ -202,6 +202,12 @@ func (n notificationComment) genPart2(c string) string {
 	return c
 }
 
+func (n notificationComment) getReviewEmailContent(pr iPRInfo) string {
+	org, repo := pr.getOrgAndRepo()
+	return fmt.Sprintf("%s invites you to review a PR called %s in %s/%s, the PR url is:\n%s",
+		pr.getAuthor(), pr.getTitle(), org, repo, pr.getUrl())
+}
+
 func convertReviewers(v []string) []string {
 	rs := make([]string, 0, len(v))
 	for _, item := range v {

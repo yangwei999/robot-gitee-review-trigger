@@ -1,13 +1,68 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"math/rand"
+	"net/http"
 	"sort"
 
-	"github.com/opensourceways/repo-owners-cache/repoowners"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/opensourceways/community-robot-lib/utils"
+	"github.com/opensourceways/repo-owners-cache/repoowners"
 )
+
+type RecommendRequest struct {
+	Community string   `json:"community"`
+	PrUrl     string   `json:"prUrl"`
+	PrTitle   string   `json:"prTitle"`
+	Reviewers []string `json:"reviewers"`
+}
+
+type RecommendResponse struct {
+	Msg  string   `json:"msg"`
+	Code int      `json:"code"`
+	Data []string `json:"data"`
+}
+
+func getRecommendReviewers(owner repoowners.RepoOwner, pr iPRInfo, url string) ([]string, error) {
+	var reviewers []string
+	for reviewer, _ := range owner.AllReviewers() {
+		reviewers = append(reviewers, reviewer)
+	}
+	org, _ := pr.getOrgAndRepo()
+	requestData := RecommendRequest{
+		Community: org,
+		PrUrl:     pr.getUrl(),
+		PrTitle:   pr.getTitle(),
+		Reviewers: reviewers,
+	}
+
+	payload, err := json.Marshal(requestData)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "robot-gitee-review-trigger")
+
+	res := new(RecommendResponse)
+	reqCli := utils.HttpClient{
+		MaxRetries: 3,
+	}
+	if err = reqCli.ForwardTo(req, res); err != nil {
+		return nil, err
+	}
+
+	return res.Data, nil
+}
 
 func suggestReviewers(
 	c ghclient, owner repoowners.RepoOwner,

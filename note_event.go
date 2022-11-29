@@ -41,6 +41,11 @@ func (bot *robot) handleAuthorCommand(e *sdk.NoteEvent, cfg *botConfig, cmds []s
 	}
 	mr := multiError()
 
+	if sets.NewString(cmds...).Has(cmdCanReview) {
+		err := bot.handleCanReviewComment(cfg, e, log)
+		mr.AddError(err)
+	}
+
 	if sets.NewString(cmds...).HasAny([]string{cmdASSIGN, cmdUNASSIGN}...) {
 		err := bot.handleAssignComment(cfg, e)
 		mr.AddError(err)
@@ -128,6 +133,25 @@ func (bot *robot) isValidReview(
 	}
 
 	return cmd, validReview
+}
+
+//handleCanReviewComment handle the can-review comment send by author
+func (bot *robot) handleCanReviewComment(cfg *botConfig, e *sdk.NoteEvent, log *logrus.Entry) error {
+	prInfo := prInfoOnNoteEvent{e}
+	if prInfo.hasLabel(labelCanReview) {
+		return nil
+	}
+
+	if cfg.CI.NoCI || prInfo.hasLabel(cfg.CI.LabelForCIPassed) {
+		return bot.readyToReview(prInfo, cfg, log)
+	} else {
+		org, repo := prInfo.getOrgAndRepo()
+
+		s := "You can't comment `/can-review` before pass the CI and CLA test"
+		return bot.client.CreatePRComment(
+			org, repo, prInfo.getNumber(), giteeclient.GenResponseWithReference(e, s),
+		)
+	}
 }
 
 // handleAssignComment handle the assign comment send by author

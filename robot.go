@@ -3,11 +3,12 @@ package main
 import (
 	"errors"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/opensourceways/community-robot-lib/config"
-	"github.com/opensourceways/community-robot-lib/robot-gitee-framework"
+	framework "github.com/opensourceways/community-robot-lib/robot-gitee-framework"
 	sdk "github.com/opensourceways/go-gitee/gitee"
 	"github.com/opensourceways/repo-owners-cache/grpc/client"
-	"github.com/sirupsen/logrus"
 )
 
 const botName = "review-trigger"

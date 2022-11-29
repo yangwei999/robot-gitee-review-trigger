@@ -46,8 +46,6 @@ func (pr prInfoOnPREvent) getTitle() string {
 }
 
 func (bot *robot) processPREvent(e *sdk.PullRequestEvent, cfg *botConfig, log *logrus.Entry) error {
-	canReview := cfg.CI.NoCI
-
 	switch sdk.GetPullRequestAction(e) {
 	case sdk.PRActionOpened:
 		mr := multiError()
@@ -59,18 +57,10 @@ func (bot *robot) processPREvent(e *sdk.PullRequestEvent, cfg *botConfig, log *l
 			}
 		}
 
-		if canReview {
-			if err := bot.readyToReview(pr, cfg, log); err != nil {
-				mr.AddError(err)
-			}
-		}
 		return mr.Err()
 
 	case sdk.PRActionChangedSourceBranch:
 		var toKeep []string
-		if canReview {
-			toKeep = append(toKeep, labelCanReview)
-		}
 		return bot.resetToReview(prInfoOnPREvent{e}, cfg, toKeep, log)
 	}
 
@@ -127,7 +117,13 @@ func (bot *robot) addReviewNotification(pr iPRInfo, cfg *botConfig, log *logrus.
 		return err
 	}
 
-	reviewers, err := suggestReviewers(bot.client, owner, pr, cfg.Review.TotalNumberOfReviewers, log)
+	var reviewers []string
+	if cfg.Review.RecommendReviewersUrl != "" {
+		reviewers, err = getRecommendReviewers(owner, pr, cfg.Review.RecommendReviewersUrl)
+	} else {
+		reviewers, err = suggestReviewers(bot.client, owner, pr, cfg.Review.TotalNumberOfReviewers, log)
+	}
+
 	if err != nil {
 		return fmt.Errorf("suggest reviewers, err: %s", err.Error())
 	}
@@ -136,8 +132,12 @@ func (bot *robot) addReviewNotification(pr iPRInfo, cfg *botConfig, log *logrus.
 		return nil
 	}
 
-	s := newNotificationComment(&reviewSummary{}, "", bot.botName).startReviewComment(reviewers)
+	emailContent := newNotificationComment(&reviewSummary{}, "", bot.botName).getReviewEmailContent(pr)
+	if err = NewEmailService(cfg).SendEmailToReviewers(reviewers, emailContent); err != nil {
+		log.Errorf("send email error:%s", err)
+	}
 
+	s := newNotificationComment(&reviewSummary{}, "", bot.botName).startReviewComment(reviewers)
 	return bot.client.CreatePRComment(org, repo, pr.getNumber(), s)
 }
 
@@ -150,10 +150,6 @@ func (bot *robot) resetToReview(pr iPRInfo, cfg *botConfig, toKeep []string, log
 
 	if err := bot.deleteReviewNotification(pr); err != nil {
 		mr.Add(fmt.Sprintf("delete tips, err:%s", err.Error()))
-	}
-
-	if err := bot.addReviewNotification(pr, cfg, log); err != nil {
-		mr.AddError(err)
 	}
 
 	return mr.Err()

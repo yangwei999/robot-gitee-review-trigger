@@ -15,17 +15,18 @@ const (
 	labelApproved      = "approved"
 	labelRequestChange = "request-change"
 
-	cmdLGTM     = "LGTM"
-	cmdLBTM     = "LBTM"
-	cmdAPPROVE  = "APPROVE"
-	cmdReject   = "REJECT"
-	cmdASSIGN   = "ASSIGN"
-	cmdUNASSIGN = "UNASSIGN"
+	cmdCanReview = "CAN-REVIEW"
+	cmdLGTM      = "LGTM"
+	cmdLBTM      = "LBTM"
+	cmdAPPROVE   = "APPROVE"
+	cmdReject    = "REJECT"
+	cmdASSIGN    = "ASSIGN"
+	cmdUNASSIGN  = "UNASSIGN"
 )
 
 var (
 	validReviewCmds      = sets.NewString(cmdLGTM, cmdLBTM, cmdAPPROVE, cmdReject)
-	validAuthorCmds      = sets.NewString(cmdASSIGN, cmdUNASSIGN)
+	validAuthorCmds      = sets.NewString(cmdCanReview, cmdASSIGN, cmdUNASSIGN)
 	negativeCmds         = sets.NewString(cmdReject, cmdLBTM)
 	positiveCmds         = sets.NewString(cmdAPPROVE, cmdLGTM)
 	cmdBelongsToApprover = sets.NewString(cmdAPPROVE, cmdReject)

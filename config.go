@@ -9,7 +9,7 @@ import (
 type configuration struct {
 	ConfigItems []botConfig `json:"config_items,omitempty"`
 
-	Email EmailConfig `json:"email"`
+	Email EmailConfig `json:"email" required:"true"`
 
 	// CommandsEndpoint is the endpoint which enumerates the usage of commands.
 	CommandsEndpoint string `json:"commands_endpoint" required:"true"`

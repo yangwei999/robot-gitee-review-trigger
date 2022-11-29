@@ -1,9 +1,10 @@
 package main
 
 import (
+	"github.com/sirupsen/logrus"
+
 	"github.com/opensourceways/community-robot-lib/giteeclient"
 	"github.com/opensourceways/repo-owners-cache/repoowners"
-	"github.com/sirupsen/logrus"
 )
 
 type PostAction struct {
@@ -111,10 +112,6 @@ func (pa PostAction) reviewing(p *actionParameter) error {
 	}
 
 	mr := multiError()
-
-	if err := p.u(labelCanReview); err != nil {
-		mr.AddError(err)
-	}
 
 	var sr []string
 	if p.oldTips == "" || !containsSuggestedReviewer(p.oldTips) {
