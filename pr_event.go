@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/opensourceways/community-robot-lib/giteeclient"
 	sdk "github.com/opensourceways/go-gitee/gitee"
-	"github.com/sirupsen/logrus"
 )
 
 type prInfoOnPREvent struct {
@@ -34,6 +35,14 @@ func (pr prInfoOnPREvent) getAuthor() string {
 
 func (pr prInfoOnPREvent) getHeadSHA() string {
 	return pr.e.GetPRHeadSha()
+}
+
+func (pr prInfoOnPREvent) getUrl() string {
+	return pr.e.GetURL()
+}
+
+func (pr prInfoOnPREvent) getTitle() string {
+	return pr.e.GetTitle()
 }
 
 func (bot *robot) processPREvent(e *sdk.PullRequestEvent, cfg *botConfig, log *logrus.Entry) error {
