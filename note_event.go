@@ -2,12 +2,17 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
+
+	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/opensourceways/community-robot-lib/giteeclient"
 	sdk "github.com/opensourceways/go-gitee/gitee"
-	"github.com/sirupsen/logrus"
 )
+
+var assignRe = regexp.MustCompile(`(?mi)^/(un)?assign(( @?[-\w]+?)*)\s*$`)
 
 func (bot *robot) processNoteEvent(e *sdk.NoteEvent, cfg *botConfig, log *logrus.Entry) error {
 	if !e.IsPullRequest() || !e.IsPROpen() {
@@ -15,12 +20,33 @@ func (bot *robot) processNoteEvent(e *sdk.NoteEvent, cfg *botConfig, log *logrus
 	}
 
 	if e.IsCreatingCommentEvent() && e.GetCommenter() != bot.botName {
+		mr := multiError()
 		if cmds := parseReviewCommand(e.GetComment().GetBody()); len(cmds) > 0 {
-			return bot.handleReviewComment(e, cfg, log)
+			err := bot.handleReviewComment(e, cfg, log)
+			mr.AddError(err)
 		}
+		if cmds := parseAuthorCommand(e.GetComment().GetBody()); len(cmds) > 0 {
+			err := bot.handleAuthorCommand(e, cfg, cmds, log)
+			mr.AddError(err)
+		}
+		return mr.Err()
 	}
 
 	return bot.handleCIStatusComment(e, cfg, log)
+}
+
+func (bot *robot) handleAuthorCommand(e *sdk.NoteEvent, cfg *botConfig, cmds []string, log *logrus.Entry) error {
+	if e.GetCommenter() != e.GetPRAuthor() {
+		return nil
+	}
+	mr := multiError()
+
+	if sets.NewString(cmds...).HasAny([]string{cmdASSIGN, cmdUNASSIGN}...) {
+		err := bot.handleAssignComment(cfg, e)
+		mr.AddError(err)
+	}
+
+	return mr.Err()
 }
 
 func (bot *robot) handleReviewComment(e *sdk.NoteEvent, cfg *botConfig, log *logrus.Entry) error {
@@ -102,4 +128,63 @@ func (bot *robot) isValidReview(
 	}
 
 	return cmd, validReview
+}
+
+// handleAssignComment handle the assign comment send by author
+func (bot *robot) handleAssignComment(cfg *botConfig, e *sdk.NoteEvent) error {
+	pr := prInfoOnNoteEvent{e}
+	org, repo := e.GetOrgRepo()
+	assign, unassign := bot.parseCmd(e)
+
+	mr := multiError()
+	if len(assign) > 0 {
+		emailContent := fmt.Sprintf("%s invites you to be a assignee of PR called %s in %s/%s, the PR url is:\n%s",
+			pr.getAuthor(), pr.getTitle(), org, repo, pr.getUrl())
+		err := NewEmailService(cfg).SendEmailToReviewers(assign.UnsortedList(), emailContent)
+		mr.AddError(err)
+
+	}
+	if len(unassign) > 0 {
+		emailContent := fmt.Sprintf("you have been unassigned as a assignee of PR called %s in %s/%s, the PR url is:\n%s",
+			pr.getTitle(), org, repo, pr.getUrl())
+		err := NewEmailService(cfg).SendEmailToReviewers(unassign.UnsortedList(), emailContent)
+		mr.AddError(err)
+
+	}
+
+	return mr.Err()
+}
+
+func (bot *robot) parseCmd(e *sdk.NoteEvent) (sets.String, sets.String) {
+	assign := sets.NewString()
+	unassign := sets.NewString()
+
+	f := func(action string, v ...string) {
+		if action == "" {
+			assign.Insert(v...)
+		} else {
+			unassign.Insert(v...)
+		}
+	}
+
+	matches := assignRe.FindAllStringSubmatch(e.Comment.Body, -1)
+	for _, re := range matches {
+		if re[2] == "" {
+			f(re[1], e.GetCommenter())
+		} else {
+			f(re[1], bot.parseLogins(re[2])...)
+		}
+	}
+
+	return assign, unassign
+}
+
+func (bot *robot) parseLogins(text string) []string {
+	var parts []string
+	for _, s := range strings.Split(text, " ") {
+		if v := strings.Trim(s, "@ "); v != "" {
+			parts = append(parts, v)
+		}
+	}
+	return parts
 }
