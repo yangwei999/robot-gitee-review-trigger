@@ -9,7 +9,7 @@ import (
 )
 
 func (bot *robot) genRepoOwner(org, repo, branch string) (repoowners.RepoOwner, error) {
-	owners, RepoOwnerErr := repoowners.NewRepoOwners(
+	owners, err := repoowners.NewRepoOwners(
 		repoowners.RepoBranch{
 			Platform: "gitee",
 			Org:      org,
@@ -18,9 +18,13 @@ func (bot *robot) genRepoOwner(org, repo, branch string) (repoowners.RepoOwner, 
 		},
 		bot.cacheCli,
 	)
-	if owners != nil {
-		return owners, RepoOwnerErr
+	if err != nil {
+		return nil, err
 	}
+	if owners != nil {
+		return owners, nil
+	}
+
 	cs, err := bot.client.listCollaborators(org, repo)
 	if err != nil {
 		return nil, err
