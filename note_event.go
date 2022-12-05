@@ -7,6 +7,7 @@ import (
 	"github.com/opensourceways/community-robot-lib/giteeclient"
 	sdk "github.com/opensourceways/go-gitee/gitee"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func (bot *robot) processNoteEvent(e *sdk.NoteEvent, cfg *botConfig, log *logrus.Entry) error {
@@ -15,12 +16,33 @@ func (bot *robot) processNoteEvent(e *sdk.NoteEvent, cfg *botConfig, log *logrus
 	}
 
 	if e.IsCreatingCommentEvent() && e.GetCommenter() != bot.botName {
+		mr := multiError()
 		if cmds := parseReviewCommand(e.GetComment().GetBody()); len(cmds) > 0 {
-			return bot.handleReviewComment(e, cfg, log)
+			err := bot.handleReviewComment(e, cfg, log)
+			mr.AddError(err)
 		}
+		if cmds := parseAuthorCommand(e.GetComment().GetBody()); len(cmds) > 0 {
+			err := bot.handleAuthorCommand(e, cfg, cmds, log)
+			mr.AddError(err)
+		}
+		return mr.Err()
 	}
 
 	return bot.handleCIStatusComment(e, cfg, log)
+}
+
+func (bot *robot) handleAuthorCommand(e *sdk.NoteEvent, cfg *botConfig, cmds []string, log *logrus.Entry) error {
+	if e.GetCommenter() != e.GetPRAuthor() {
+		return nil
+	}
+	mr := multiError()
+
+	if sets.NewString(cmds...).Has(cmdCanReview) {
+		err := bot.handleCanReviewComment(cfg, e, log)
+		mr.AddError(err)
+	}
+
+	return mr.Err()
 }
 
 func (bot *robot) handleReviewComment(e *sdk.NoteEvent, cfg *botConfig, log *logrus.Entry) error {
@@ -102,4 +124,23 @@ func (bot *robot) isValidReview(
 	}
 
 	return cmd, validReview
+}
+
+//handleCanReviewComment handle the can-review comment send by author
+func (bot *robot) handleCanReviewComment(cfg *botConfig, e *sdk.NoteEvent, log *logrus.Entry) error {
+	prInfo := prInfoOnNoteEvent{e}
+	if prInfo.hasLabel(labelCanReview) {
+		return nil
+	}
+
+	if cfg.CI.NoCI || prInfo.hasLabel(cfg.CI.LabelForCIPassed) {
+		return bot.readyToReview(prInfo, cfg, log)
+	} else {
+		org, repo := prInfo.getOrgAndRepo()
+
+		s := "You can't comment `/can-review` before pass the CI test"
+		return bot.client.CreatePRComment(
+			org, repo, prInfo.getNumber(), giteeclient.GenResponseWithReference(e, s),
+		)
+	}
 }

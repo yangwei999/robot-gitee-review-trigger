@@ -14,14 +14,16 @@ const (
 	labelApproved      = "approved"
 	labelRequestChange = "request-change"
 
-	cmdLGTM    = "LGTM"
-	cmdLBTM    = "LBTM"
-	cmdAPPROVE = "APPROVE"
-	cmdReject  = "REJECT"
+	cmdCanReview = "CAN-REVIEW"
+	cmdLGTM      = "LGTM"
+	cmdLBTM      = "LBTM"
+	cmdAPPROVE   = "APPROVE"
+	cmdReject    = "REJECT"
 )
 
 var (
-	validCmds            = sets.NewString(cmdLGTM, cmdLBTM, cmdAPPROVE, cmdReject)
+	validReviewCmds      = sets.NewString(cmdLGTM, cmdLBTM, cmdAPPROVE, cmdReject)
+	validAuthorCmds      = sets.NewString(cmdCanReview)
 	negativeCmds         = sets.NewString(cmdReject, cmdLBTM)
 	positiveCmds         = sets.NewString(cmdAPPROVE, cmdLGTM)
 	cmdBelongsToApprover = sets.NewString(cmdAPPROVE, cmdReject)
@@ -41,10 +43,18 @@ func canApplyCmd(cmd string, isPRAuthor, isApprover, allowSelfApprove bool) bool
 }
 
 func parseReviewCommand(comment string) []string {
+	return parseCommand(comment, validReviewCmds)
+}
+
+func parseAuthorCommand(comment string) []string {
+	return parseCommand(comment, validAuthorCmds)
+}
+
+func parseCommand(comment string, cmds sets.String) []string {
 	r := []string{}
 	for _, match := range commandRegex.FindAllStringSubmatch(comment, -1) {
 		cmd := strings.ToUpper(match[1])
-		if validCmds.Has(cmd) {
+		if cmds.Has(cmd) {
 			r = append(r, cmd)
 		}
 	}
