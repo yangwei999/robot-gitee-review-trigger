@@ -1,54 +1,5 @@
 package main
 
-import (
-	"fmt"
-	"regexp"
-
-	"k8s.io/apimachinery/pkg/util/sets"
-)
-
-type ownerConfig struct {
-	// BranchWithoutOwners is a list of branches which have no OWNERS file
-	// For these branch, collaborators will work as the approvers
-	// It can't be set with BranchWithOwners at same time
-	BranchWithoutOwners   string `json:"branch_without_owners"`
-	reBranchWithoutOwners *regexp.Regexp
-
-	// BranchWithOwners is a list of branches which have OWNERS file
-	// It can't be set with BranchWithoutOwners at same time
-	BranchWithOwners []string `json:"branch_with_owners"`
-}
-
-func (o *ownerConfig) setDefault() {}
-
-func (o *ownerConfig) validate() error {
-	if o == nil {
-		return nil
-	}
-
-	if len(o.BranchWithOwners) > 0 && o.BranchWithoutOwners != "" {
-		return fmt.Errorf("both `branch_with_owners` and `branch_without_owners` can not be set at same time")
-	}
-
-	if o.BranchWithoutOwners != "" {
-		r, err := regexp.Compile(o.BranchWithoutOwners)
-		if err != nil {
-			return fmt.Errorf("the value of `branch_without_owners` is not a valid regexp, err:%v", err)
-		}
-		o.reBranchWithoutOwners = r
-	}
-	return nil
-}
-
-// len(o.BranchWithOwners) == 0 && o.BranchWithoutOwners == "" means all branch has OWNERS file.
-func (o ownerConfig) IsBranchWithoutOwners(branch string) bool {
-	if len(o.BranchWithOwners) > 0 {
-		return !sets.NewString(o.BranchWithOwners...).Has(branch)
-	}
-
-	return o.reBranchWithoutOwners != nil && o.reBranchWithoutOwners.MatchString(branch)
-}
-
 type reviewConfig struct {
 	// AllowSelfApprove is the tag which indicate if the author
 	// can appove his/her own pull-request.

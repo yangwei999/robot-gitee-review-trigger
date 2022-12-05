@@ -62,7 +62,7 @@ func (bot *robot) handleCIStatusComment(e *gitee.NoteEvent, cfg *botConfig, log 
 
 	org, repo := e.GetOrgRepo()
 
-	owner, err := bot.genRepoOwner(org, repo, e.GetPRBaseRef(), cfg.Owner, log)
+	owner, err := bot.genRepoOwner(org, repo, e.GetPRBaseRef())
 	if err != nil {
 		return err
 	}

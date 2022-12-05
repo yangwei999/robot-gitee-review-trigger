@@ -3,15 +3,13 @@ package main
 import (
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/opensourceways/community-robot-lib/giteeclient"
 	sdk "github.com/opensourceways/go-gitee/gitee"
 	"github.com/opensourceways/repo-owners-cache/repoowners"
 )
 
-func (bot *robot) genRepoOwner(org, repo, branch string, cfg ownerConfig, log *logrus.Entry) (repoowners.RepoOwner, error) {
-	owners, err1 := repoowners.NewRepoOwners(
+func (bot *robot) genRepoOwner(org, repo, branch string) (repoowners.RepoOwner, error) {
+	owners, RepoOwnerErr := repoowners.NewRepoOwners(
 		repoowners.RepoBranch{
 			Platform: "gitee",
 			Org:      org,
@@ -20,19 +18,14 @@ func (bot *robot) genRepoOwner(org, repo, branch string, cfg ownerConfig, log *l
 		},
 		bot.cacheCli,
 	)
-	if err1 == nil && owners != nil {
-		return owners, err1
+	if owners != nil {
+		return owners, RepoOwnerErr
 	}
-
-	if cfg.IsBranchWithoutOwners(branch) {
-		cs, err := bot.client.listCollaborators(org, repo)
-		if err != nil {
-			return nil, err
-		}
-		return repoowners.RepoMemberAsOwners(cs), nil
+	cs, err := bot.client.listCollaborators(org, repo)
+	if err != nil {
+		return nil, err
 	}
-
-	return nil, err1
+	return repoowners.RepoMemberAsOwners(cs), nil
 }
 
 func (bot *robot) genPullRequest(prInfo iPRInfo, assignees []string, owner repoowners.RepoOwner) (pullRequest, error) {

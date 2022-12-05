@@ -78,8 +78,6 @@ type botConfig struct {
 
 	Review reviewConfig `json:"review"`
 
-	Owner ownerConfig `json:"owner"`
-
 	// NeedWelcome specifies whether to add welcome comment.
 	NeedWelcome bool `json:"need_welcome,omitempty"`
 
@@ -91,7 +89,6 @@ func (c *botConfig) setDefault() {
 	if c != nil {
 		c.CI.setDefault()
 		c.Review.setDefault()
-		c.Owner.setDefault()
 	}
 }
 
@@ -105,10 +102,6 @@ func (c *botConfig) validate() error {
 	}
 
 	if err := c.Review.validate(); err != nil {
-		return err
-	}
-
-	if err := c.Owner.validate(); err != nil {
 		return err
 	}
 

@@ -25,7 +25,7 @@ func (bot *robot) processNoteEvent(e *sdk.NoteEvent, cfg *botConfig, log *logrus
 
 func (bot *robot) handleReviewComment(e *sdk.NoteEvent, cfg *botConfig, log *logrus.Entry) error {
 	org, repo := e.GetOrgRepo()
-	owner, err := bot.genRepoOwner(org, repo, e.GetPRBaseRef(), cfg.Owner, log)
+	owner, err := bot.genRepoOwner(org, repo, e.GetPRBaseRef())
 	if err != nil {
 		return err
 	}

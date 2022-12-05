@@ -113,7 +113,7 @@ func (bot *robot) addLabelOfCanReview(pr iPRInfo) error {
 
 func (bot *robot) addReviewNotification(pr iPRInfo, cfg *botConfig, log *logrus.Entry) error {
 	org, repo := pr.getOrgAndRepo()
-	owner, err := bot.genRepoOwner(org, repo, pr.getTargetBranch(), cfg.Owner, log)
+	owner, err := bot.genRepoOwner(org, repo, pr.getTargetBranch())
 	if err != nil {
 		return err
 	}
