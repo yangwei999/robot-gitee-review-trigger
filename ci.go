@@ -91,16 +91,17 @@ func (bot *robot) handleCIStatusComment(e *gitee.NoteEvent, cfg *botConfig, log 
 	rs, r := info.doStats(stats, bot.botName)
 
 	if rs.IsEmpty() {
-		return bot.readyToReview(prInfo, cfg, log)
+		return nil
 	}
 
+	canReview := stats.pr.info.hasLabel(labelCanReview)
 	pa := PostAction{
 		c:                bot.client,
 		cfg:              cfg,
 		owner:            owner,
 		log:              log,
 		pr:               &pr,
-		isStartingReview: true,
+		isStartingReview: canReview,
 	}
 
 	return pa.do(info.reviewGuides(bot.botName), "", rs, r, bot.botName)

@@ -37,8 +37,6 @@ func (pr prInfoOnPREvent) getHeadSHA() string {
 }
 
 func (bot *robot) processPREvent(e *sdk.PullRequestEvent, cfg *botConfig, log *logrus.Entry) error {
-	canReview := cfg.CI.NoCI
-
 	switch sdk.GetPullRequestAction(e) {
 	case sdk.PRActionOpened:
 		mr := multiError()
@@ -49,19 +47,10 @@ func (bot *robot) processPREvent(e *sdk.PullRequestEvent, cfg *botConfig, log *l
 				mr.Add(fmt.Sprintf("add welcome comment, err:%s", err.Error()))
 			}
 		}
-
-		if canReview {
-			if err := bot.readyToReview(pr, cfg, log); err != nil {
-				mr.AddError(err)
-			}
-		}
 		return mr.Err()
 
 	case sdk.PRActionChangedSourceBranch:
 		var toKeep []string
-		if canReview {
-			toKeep = append(toKeep, labelCanReview)
-		}
 		return bot.resetToReview(prInfoOnPREvent{e}, cfg, toKeep, log)
 	}
 
@@ -141,10 +130,6 @@ func (bot *robot) resetToReview(pr iPRInfo, cfg *botConfig, toKeep []string, log
 
 	if err := bot.deleteReviewNotification(pr); err != nil {
 		mr.Add(fmt.Sprintf("delete tips, err:%s", err.Error()))
-	}
-
-	if err := bot.addReviewNotification(pr, cfg, log); err != nil {
-		mr.AddError(err)
 	}
 
 	return mr.Err()
