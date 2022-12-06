@@ -63,6 +63,10 @@ func (r reviewInfo) reviewGuides(botName string) []giteeclient.BotComment {
 	return giteeclient.FindBotComment(r.comments, botName, isNotificationComment)
 }
 
-func (r reviewInfo) doStats(s *reviewStats, botName string) (reviewSummary, reviewResult) {
-	return s.StatReview(r.comments, r.t, botName)
+func (r reviewInfo) doStats(
+	s *reviewStats,
+	botName string,
+	eventInfo *NoteEventInfo,
+) (reviewSummary, reviewResult) {
+	return s.StatReview(r.comments, r.t, botName, eventInfo)
 }

@@ -42,16 +42,10 @@ func canApplyCmd(cmd string, isPRAuthor, isApprover, allowSelfApprove bool) bool
 	return true
 }
 
-func parseReviewCommand(comment string) []string {
-	cmds := parseCommand(comment)
-	return cmds.Intersection(validReviewCmds).UnsortedList()
-}
-
 func parseCommand(comment string) sets.String {
-	r := make(sets.String)
+	r := sets.NewString()
 	for _, match := range commandRegex.FindAllStringSubmatch(comment, -1) {
-		cmd := strings.ToUpper(match[1])
-		r.Insert(cmd)
+		r.Insert(strings.ToUpper(match[1]))
 	}
 	return r
 }
@@ -113,8 +107,7 @@ func genReviewSummary(cmds []reviewCommand) reviewSummary {
 	}
 }
 
-func getReviewCommand(comment, author string, isValidCmd func(cmd, author string) bool) (validCmd string, invalidCmd string) {
-	cmds := parseReviewCommand(comment)
+func getReviewCommand(author string, cmds []string, isValidCmd func(cmd, author string) bool) (validCmd string, invalidCmd string) {
 	if len(cmds) == 0 {
 		return
 	}

@@ -10,81 +10,38 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-type NoteEventInfo struct {
-	e               *sdk.NoteEvent
-	cmds            sets.String
-	hasReviewCmd    bool
-	hasAuthorCmd    bool
-	hasCanReviewCmd bool
-	hasAssignCmd    bool
-}
-
 func (bot *robot) processNoteEvent(e *sdk.NoteEvent, cfg *botConfig, log *logrus.Entry) error {
 	if !e.IsPullRequest() || !e.IsPROpen() {
 		return nil
 	}
 
+	eventInfo := bot.NewNoteEventInfo(e)
 	if e.IsCreatingCommentEvent() && e.GetCommenter() != bot.botName {
-		info := bot.NewNoteEventInfo(e)
 
 		mr := multiError()
-		if info.hasReviewCmd {
-			err := bot.handleReviewComment(e, cfg, log)
+		if eventInfo.hasReviewCmd() {
+			err := bot.handleReviewComment(cfg, eventInfo, log)
 			mr.AddError(err)
 		}
-		if info.hasAuthorCmd {
-			err := bot.handleAuthorCommand(info, cfg, log)
+		if eventInfo.hasCanReviewCmd() {
+			err := bot.handleCanReviewComment(cfg, eventInfo, log)
 			mr.AddError(err)
 		}
 		return mr.Err()
 	}
 
-	return bot.handleCIStatusComment(e, cfg, log)
+	return bot.handleCIStatusComment(cfg, eventInfo, log)
 }
 
-func (bot *robot) NewNoteEventInfo(e *sdk.NoteEvent) *NoteEventInfo {
-	cmds := parseCommand(e.GetComment().GetBody())
-	info := &NoteEventInfo{
-		e:    e,
-		cmds: cmds,
-	}
-
-	if len(cmds.Intersection(validReviewCmds)) > 0 {
-		info.hasReviewCmd = true
-	}
-	if len(cmds.Intersection(validAuthorCmds)) > 0 {
-		info.hasAuthorCmd = true
-	}
-	if cmds.Has(cmdCanReview) {
-		info.hasCanReviewCmd = true
-	}
-
-	return info
-}
-
-func (bot *robot) handleAuthorCommand(info *NoteEventInfo, cfg *botConfig, log *logrus.Entry) error {
-	if info.e.GetCommenter() != info.e.GetPRAuthor() {
-		return nil
-	}
-
-	mr := multiError()
-	if info.hasCanReviewCmd {
-		err := bot.handleCanReviewComment(cfg, info.e, log)
-		mr.AddError(err)
-	}
-
-	return mr.Err()
-}
-
-func (bot *robot) handleReviewComment(e *sdk.NoteEvent, cfg *botConfig, log *logrus.Entry) error {
-	org, repo := e.GetOrgRepo()
-	owner, err := bot.genRepoOwner(org, repo, e.GetPRBaseRef())
+func (bot *robot) handleReviewComment(cfg *botConfig, eventInfo *NoteEventInfo, log *logrus.Entry) error {
+	org, repo := eventInfo.e.GetOrgRepo()
+	owner, err := bot.genRepoOwner(org, repo, eventInfo.e.GetPRBaseRef())
 	if err != nil {
 		return err
 	}
 
-	prInfo := prInfoOnNoteEvent{e}
-	pr, err := bot.genPullRequest(prInfo, getAssignees(e.GetPullRequest()), owner)
+	prInfo := prInfoOnNoteEvent{eventInfo.e}
+	pr, err := bot.genPullRequest(prInfo, getAssignees(eventInfo.e.GetPullRequest()), owner)
 	if err != nil {
 		return err
 	}
@@ -95,7 +52,7 @@ func (bot *robot) handleReviewComment(e *sdk.NoteEvent, cfg *botConfig, log *log
 		reviewers: owner.AllReviewers(),
 	}
 
-	cmd, validReview := bot.isValidReview(cfg.commandsEndpoint, stats, e, log)
+	cmd, validReview := bot.isValidReview(cfg.commandsEndpoint, stats, eventInfo, log)
 	if !validReview {
 		return nil
 	}
@@ -116,17 +73,17 @@ func (bot *robot) handleReviewComment(e *sdk.NoteEvent, cfg *botConfig, log *log
 	}
 
 	oldTips := info.reviewGuides(bot.botName)
-	rs, rr := info.doStats(stats, bot.botName)
+	rs, rr := info.doStats(stats, bot.botName, eventInfo)
 
 	return pa.do(oldTips, cmd, rs, rr, bot.botName)
 }
 
 func (bot *robot) isValidReview(
-	commandEndpoint string, stats *reviewStats, e *sdk.NoteEvent, log *logrus.Entry,
+	commandEndpoint string, stats *reviewStats, eventInfo *NoteEventInfo, log *logrus.Entry,
 ) (string, bool) {
-	commenter := normalizeLogin(e.GetCommenter())
+	commenter := normalizeLogin(eventInfo.e.GetCommenter())
 
-	cmd, invalidCmd := getReviewCommand(e.GetComment().GetBody(), commenter, stats.genCheckCmdFunc())
+	cmd, invalidCmd := getReviewCommand(commenter, eventInfo.cmds.UnsortedList(), stats.genCheckCmdFunc())
 
 	validReview := cmd != "" && stats.isReviewer(commenter)
 
@@ -150,7 +107,7 @@ func (bot *robot) isValidReview(
 
 		bot.client.CreatePRComment(
 			org, repo, info.getNumber(),
-			giteeclient.GenResponseWithReference(e, s),
+			giteeclient.GenResponseWithReference(eventInfo.e, s),
 		)
 	}
 
@@ -158,26 +115,73 @@ func (bot *robot) isValidReview(
 }
 
 //handleCanReviewComment handle the can-review comment send by author
-func (bot *robot) handleCanReviewComment(cfg *botConfig, e *sdk.NoteEvent, log *logrus.Entry) error {
-	prInfo := prInfoOnNoteEvent{e}
+func (bot *robot) handleCanReviewComment(cfg *botConfig, eventInfo *NoteEventInfo, log *logrus.Entry) error {
+	if !eventInfo.isAuthor() {
+		return nil
+	}
+	prInfo := prInfoOnNoteEvent{eventInfo.e}
 	if prInfo.hasLabel(labelCanReview) {
 		return nil
 	}
 
-	if bot.ciAndClaLabelCheck(cfg, prInfo) {
-		return bot.readyToReview(prInfo, cfg, log)
-	} else {
+	if tip := bot.ciAndClaLabelCheck(cfg, prInfo); tip != "" {
 		org, repo := prInfo.getOrgAndRepo()
 
-		s := "You can't comment `/can-review` before pass the CI and CLA test"
 		return bot.client.CreatePRComment(
-			org, repo, prInfo.getNumber(), giteeclient.GenResponseWithReference(e, s),
+			org, repo, prInfo.getNumber(),
+			giteeclient.GenResponseWithReference(eventInfo.e, tip),
 		)
+	}
+
+	return bot.readyToReview(prInfo, cfg, log)
+}
+
+func (bot *robot) ciAndClaLabelCheck(cfg *botConfig, prInfo prInfoOnNoteEvent) string {
+	ciPassed := cfg.CI.NoCI || prInfo.hasLabel(cfg.CI.LabelForCIPassed)
+	claPassed := prInfo.hasLabel(cfg.CLA.LabelForCLAPassed)
+
+	commonTip := "You can only comment /can-review when the label of ci and cla available,\nit still needs %s"
+	var tip string
+	if !ciPassed {
+		tip = fmt.Sprintf(commonTip, cfg.CI.LabelForCIPassed)
+	}
+	if !claPassed {
+		tip = fmt.Sprintf(commonTip, cfg.CLA.LabelForCLAPassed)
+	}
+	if !ciPassed && !claPassed {
+		bothNeedTip := fmt.Sprintf("%s and %s", cfg.CI.LabelForCIPassed, cfg.CLA.LabelForCLAPassed)
+		tip = fmt.Sprintf(commonTip, bothNeedTip)
+	}
+
+	return tip
+}
+
+type NoteEventInfo struct {
+	e    *sdk.NoteEvent
+	cmds sets.String
+}
+
+func (bot *robot) NewNoteEventInfo(e *sdk.NoteEvent) *NoteEventInfo {
+	cmds := parseCommand(e.GetComment().GetBody())
+
+	return &NoteEventInfo{
+		e:    e,
+		cmds: cmds,
 	}
 }
 
-func (bot *robot) ciAndClaLabelCheck(cfg *botConfig, prInfo prInfoOnNoteEvent) bool {
-	ciPassed := cfg.CI.NoCI || prInfo.hasLabel(cfg.CI.LabelForCIPassed)
-	claPassed := cfg.CLA.NoCLA || prInfo.hasLabel(cfg.CLA.LabelForCLAPassed)
-	return ciPassed && claPassed
+func (n *NoteEventInfo) hasReviewCmd() bool {
+	return len(n.cmds.Intersection(validReviewCmds)) > 0
+}
+
+func (n *NoteEventInfo) hasCanReviewCmd() bool {
+	return n.cmds.Has(cmdCanReview)
+}
+
+func (n *NoteEventInfo) hasAssignCmd() bool {
+	return false
+}
+
+func (n *NoteEventInfo) isAuthor() bool {
+	return n.e.GetCommenter() == n.e.GetPRAuthor()
 }

@@ -88,7 +88,6 @@ type botConfig struct {
 }
 
 type claConfig struct {
-	NoCLA             bool   `json:"no_cla,omitempty"`
 	LabelForCLAPassed string `json:"label_for_cla_passed,omitempty"`
 }
 
