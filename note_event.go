@@ -30,18 +30,18 @@ func (bot *robot) processNoteEvent(e *sdk.NoteEvent, cfg *botConfig, log *logrus
 		return mr.Err()
 	}
 
-	return bot.handleCIStatusComment(cfg, eventInfo, log)
+	return bot.handleCIStatusComment(eventInfo, cfg, log)
 }
 
-func (bot *robot) handleReviewComment(cfg *botConfig, eventInfo *NoteEventInfo, log *logrus.Entry) error {
-	org, repo := eventInfo.e.GetOrgRepo()
-	owner, err := bot.genRepoOwner(org, repo, eventInfo.e.GetPRBaseRef())
+func (bot *robot) handleReviewComment(e *NoteEventInfo, cfg *botConfig, log *logrus.Entry) error {
+	org, repo := e.GetOrgRepo()
+	owner, err := bot.genRepoOwner(org, repo, e.GetPRBaseRef())
 	if err != nil {
 		return err
 	}
 
-	prInfo := prInfoOnNoteEvent{eventInfo.e}
-	pr, err := bot.genPullRequest(prInfo, getAssignees(eventInfo.e.GetPullRequest()), owner)
+	prInfo := prInfoOnNoteEvent{e.NoteEvent}
+	pr, err := bot.genPullRequest(prInfo, getAssignees(e.GetPullRequest()), owner)
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func (bot *robot) handleReviewComment(cfg *botConfig, eventInfo *NoteEventInfo, 
 		reviewers: owner.AllReviewers(),
 	}
 
-	cmd, validReview := bot.isValidReview(cfg.commandsEndpoint, stats, eventInfo, log)
+	cmd, validReview := bot.isValidReview(cfg.commandsEndpoint, stats, e, log)
 	if !validReview {
 		return nil
 	}
@@ -73,17 +73,17 @@ func (bot *robot) handleReviewComment(cfg *botConfig, eventInfo *NoteEventInfo, 
 	}
 
 	oldTips := info.reviewGuides(bot.botName)
-	rs, rr := info.doStats(stats, bot.botName, eventInfo)
+	rs, rr := info.doStats(stats, bot.botName, e)
 
 	return pa.do(oldTips, cmd, rs, rr, bot.botName)
 }
 
 func (bot *robot) isValidReview(
-	commandEndpoint string, stats *reviewStats, eventInfo *NoteEventInfo, log *logrus.Entry,
+	commandEndpoint string, stats *reviewStats, e *NoteEventInfo, log *logrus.Entry,
 ) (string, bool) {
-	commenter := normalizeLogin(eventInfo.e.GetCommenter())
+	commenter := normalizeLogin(e.GetCommenter())
 
-	cmd, invalidCmd := getReviewCommand(commenter, eventInfo.cmds.UnsortedList(), stats.genCheckCmdFunc())
+	cmd, invalidCmd := getReviewCommand(e.cmds.UnsortedList(), commenter, stats.genCheckCmdFunc())
 
 	validReview := cmd != "" && stats.isReviewer(commenter)
 
@@ -107,7 +107,7 @@ func (bot *robot) isValidReview(
 
 		bot.client.CreatePRComment(
 			org, repo, info.getNumber(),
-			giteeclient.GenResponseWithReference(eventInfo.e, s),
+			giteeclient.GenResponseWithReference(e.NoteEvent, s),
 		)
 	}
 
@@ -115,49 +115,46 @@ func (bot *robot) isValidReview(
 }
 
 //handleCanReviewComment handle the can-review comment send by author
-func (bot *robot) handleCanReviewComment(cfg *botConfig, eventInfo *NoteEventInfo, log *logrus.Entry) error {
-	if !eventInfo.isAuthor() {
+func (bot *robot) handleCanReviewComment(cfg *botConfig, e *NoteEventInfo, log *logrus.Entry) error {
+	if !e.isAuthor() {
 		return nil
 	}
-	prInfo := prInfoOnNoteEvent{eventInfo.e}
+	prInfo := prInfoOnNoteEvent{e.NoteEvent}
 	if prInfo.hasLabel(labelCanReview) {
 		return nil
 	}
 
-	if tip := bot.ciAndClaLabelCheck(cfg, prInfo); tip != "" {
+	if tip := bot.labelCheckTip(cfg, prInfo); tip != "" {
 		org, repo := prInfo.getOrgAndRepo()
 
 		return bot.client.CreatePRComment(
 			org, repo, prInfo.getNumber(),
-			giteeclient.GenResponseWithReference(eventInfo.e, tip),
+			giteeclient.GenResponseWithReference(e.NoteEvent, tip),
 		)
 	}
 
 	return bot.readyToReview(prInfo, cfg, log)
 }
 
-func (bot *robot) ciAndClaLabelCheck(cfg *botConfig, prInfo prInfoOnNoteEvent) string {
-	ciPassed := cfg.CI.NoCI || prInfo.hasLabel(cfg.CI.LabelForCIPassed)
-	claPassed := prInfo.hasLabel(cfg.CLA.LabelForCLAPassed)
-
-	commonTip := "You can only comment /can-review when the label of ci and cla available,\nit still needs %s"
+func (bot *robot) labelCheckTip(cfg *botConfig, prInfo prInfoOnNoteEvent) string {
+	commonTip := "You can only comment /can-review when you have signed %s,\n" +
+		"You can only comment /can-review when the label of %s is available."
 	var tip string
-	if !ciPassed {
-		tip = fmt.Sprintf(commonTip, cfg.CI.LabelForCIPassed)
+	if !bot.ciCheck(cfg, prInfo) {
+		tip = fmt.Sprintf(commonTip, "ci", cfg.CI.LabelForCIPassed)
 	}
-	if !claPassed {
-		tip = fmt.Sprintf(commonTip, cfg.CLA.LabelForCLAPassed)
+	if !prInfo.hasLabel(cfg.CLA.LabelForCLAPassed) {
+		tip = fmt.Sprintf(commonTip, "cla", cfg.CLA.LabelForCLAPassed)
 	}
-	if !ciPassed && !claPassed {
-		bothNeedTip := fmt.Sprintf("%s and %s", cfg.CI.LabelForCIPassed, cfg.CLA.LabelForCLAPassed)
-		tip = fmt.Sprintf(commonTip, bothNeedTip)
-	}
-
 	return tip
 }
 
+func (bot *robot) ciCheck(cfg *botConfig, prInfo prInfoOnNoteEvent) bool {
+	return cfg.CI.NoCI || prInfo.hasLabel(cfg.CI.LabelForCIPassed)
+}
+
 type NoteEventInfo struct {
-	e    *sdk.NoteEvent
+	*sdk.NoteEvent
 	cmds sets.String
 }
 
@@ -165,8 +162,8 @@ func (bot *robot) NewNoteEventInfo(e *sdk.NoteEvent) *NoteEventInfo {
 	cmds := parseCommand(e.GetComment().GetBody())
 
 	return &NoteEventInfo{
-		e:    e,
-		cmds: cmds,
+		e,
+		cmds,
 	}
 }
 
@@ -183,5 +180,5 @@ func (n *NoteEventInfo) hasAssignCmd() bool {
 }
 
 func (n *NoteEventInfo) isAuthor() bool {
-	return n.e.GetCommenter() == n.e.GetPRAuthor()
+	return n.GetCommenter() == n.GetPRAuthor()
 }

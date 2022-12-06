@@ -56,7 +56,7 @@ func (rs reviewStats) filterComments(
 			continue
 		}
 
-		if cmd, _ := getReviewCommand(c.author, eventInfo.cmds.UnsortedList(), isValidCmd); cmd != "" {
+		if cmd, _ := getReviewCommand(eventInfo.cmds.UnsortedList(), c.author, isValidCmd); cmd != "" {
 			commands = append(commands, reviewCommand{command: cmd, author: c.author})
 			done[c.author] = true
 		}

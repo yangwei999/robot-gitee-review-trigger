@@ -107,7 +107,7 @@ func genReviewSummary(cmds []reviewCommand) reviewSummary {
 	}
 }
 
-func getReviewCommand(author string, cmds []string, isValidCmd func(cmd, author string) bool) (validCmd string, invalidCmd string) {
+func getReviewCommand(cmds []string, author string, isValidCmd func(cmd, author string) bool) (validCmd string, invalidCmd string) {
 	if len(cmds) == 0 {
 		return
 	}
