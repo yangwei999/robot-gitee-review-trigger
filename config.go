@@ -76,6 +76,8 @@ type botConfig struct {
 
 	CI ciConfig `json:"ci"`
 
+	CLA claConfig `json:"cla"`
+
 	Review reviewConfig `json:"review"`
 
 	// NeedWelcome specifies whether to add welcome comment.
@@ -83,6 +85,11 @@ type botConfig struct {
 
 	doc              string `json:"-"`
 	commandsEndpoint string `json:"-"`
+}
+
+type claConfig struct {
+	NoCLA             bool   `json:"no_cla,omitempty"`
+	LabelForCLAPassed string `json:"label_for_cla_passed,omitempty"`
 }
 
 func (c *botConfig) setDefault() {

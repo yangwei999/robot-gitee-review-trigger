@@ -10,19 +10,30 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
+type NoteEventInfo struct {
+	e               *sdk.NoteEvent
+	cmds            sets.String
+	hasReviewCmd    bool
+	hasAuthorCmd    bool
+	hasCanReviewCmd bool
+	hasAssignCmd    bool
+}
+
 func (bot *robot) processNoteEvent(e *sdk.NoteEvent, cfg *botConfig, log *logrus.Entry) error {
 	if !e.IsPullRequest() || !e.IsPROpen() {
 		return nil
 	}
 
 	if e.IsCreatingCommentEvent() && e.GetCommenter() != bot.botName {
+		info := bot.NewNoteEventInfo(e)
+
 		mr := multiError()
-		if cmds := parseReviewCommand(e.GetComment().GetBody()); len(cmds) > 0 {
+		if info.hasReviewCmd {
 			err := bot.handleReviewComment(e, cfg, log)
 			mr.AddError(err)
 		}
-		if cmds := parseAuthorCommand(e.GetComment().GetBody()); len(cmds) > 0 {
-			err := bot.handleAuthorCommand(e, cfg, cmds, log)
+		if info.hasAuthorCmd {
+			err := bot.handleAuthorCommand(info, cfg, log)
 			mr.AddError(err)
 		}
 		return mr.Err()
@@ -31,14 +42,34 @@ func (bot *robot) processNoteEvent(e *sdk.NoteEvent, cfg *botConfig, log *logrus
 	return bot.handleCIStatusComment(e, cfg, log)
 }
 
-func (bot *robot) handleAuthorCommand(e *sdk.NoteEvent, cfg *botConfig, cmds []string, log *logrus.Entry) error {
-	if e.GetCommenter() != e.GetPRAuthor() {
+func (bot *robot) NewNoteEventInfo(e *sdk.NoteEvent) *NoteEventInfo {
+	cmds := parseCommand(e.GetComment().GetBody())
+	info := &NoteEventInfo{
+		e:    e,
+		cmds: cmds,
+	}
+
+	if len(cmds.Intersection(validReviewCmds)) > 0 {
+		info.hasReviewCmd = true
+	}
+	if len(cmds.Intersection(validAuthorCmds)) > 0 {
+		info.hasAuthorCmd = true
+	}
+	if cmds.Has(cmdCanReview) {
+		info.hasCanReviewCmd = true
+	}
+
+	return info
+}
+
+func (bot *robot) handleAuthorCommand(info *NoteEventInfo, cfg *botConfig, log *logrus.Entry) error {
+	if info.e.GetCommenter() != info.e.GetPRAuthor() {
 		return nil
 	}
-	mr := multiError()
 
-	if sets.NewString(cmds...).Has(cmdCanReview) {
-		err := bot.handleCanReviewComment(cfg, e, log)
+	mr := multiError()
+	if info.hasCanReviewCmd {
+		err := bot.handleCanReviewComment(cfg, info.e, log)
 		mr.AddError(err)
 	}
 
@@ -133,14 +164,20 @@ func (bot *robot) handleCanReviewComment(cfg *botConfig, e *sdk.NoteEvent, log *
 		return nil
 	}
 
-	if cfg.CI.NoCI || prInfo.hasLabel(cfg.CI.LabelForCIPassed) {
+	if bot.ciAndClaLabelCheck(cfg, prInfo) {
 		return bot.readyToReview(prInfo, cfg, log)
 	} else {
 		org, repo := prInfo.getOrgAndRepo()
 
-		s := "You can't comment `/can-review` before pass the CI test"
+		s := "You can't comment `/can-review` before pass the CI and CLA test"
 		return bot.client.CreatePRComment(
 			org, repo, prInfo.getNumber(), giteeclient.GenResponseWithReference(e, s),
 		)
 	}
+}
+
+func (bot *robot) ciAndClaLabelCheck(cfg *botConfig, prInfo prInfoOnNoteEvent) bool {
+	ciPassed := cfg.CI.NoCI || prInfo.hasLabel(cfg.CI.LabelForCIPassed)
+	claPassed := cfg.CLA.NoCLA || prInfo.hasLabel(cfg.CLA.LabelForCLAPassed)
+	return ciPassed && claPassed
 }
