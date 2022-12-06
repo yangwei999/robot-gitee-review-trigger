@@ -55,8 +55,8 @@ func canHandleCIEvent(e *gitee.NoteEvent, cfg ciConfig) (bool, error) {
 	return cfg.Job.isCISuccess(e.GetComment().GetBody(), cfg.NumberOfTestCases)
 }
 
-func (bot *robot) handleCIStatusComment(e *NoteEventInfo, cfg *botConfig, log *logrus.Entry) error {
-	if b, err := canHandleCIEvent(e.NoteEvent, cfg.CI); !b {
+func (bot *robot) handleCIStatusComment(e *gitee.NoteEvent, cfg *botConfig, log *logrus.Entry) error {
+	if b, err := canHandleCIEvent(e, cfg.CI); !b {
 		return err
 	}
 
@@ -67,7 +67,7 @@ func (bot *robot) handleCIStatusComment(e *NoteEventInfo, cfg *botConfig, log *l
 		return err
 	}
 
-	prInfo := prInfoOnNoteEvent{e.NoteEvent}
+	prInfo := prInfoOnNoteEvent{e}
 	pr, err := bot.genPullRequest(prInfo, getAssignees(e.GetPullRequest()), owner)
 	if err != nil {
 		return err
@@ -84,7 +84,7 @@ func (bot *robot) handleCIStatusComment(e *NoteEventInfo, cfg *botConfig, log *l
 		reviewers: owner.AllReviewers(),
 	}
 
-	rs, r := info.doStats(stats, bot.botName, e)
+	rs, r := info.doStats(stats, bot.botName)
 
 	if rs.IsEmpty() {
 		return bot.readyToReview(prInfo, cfg, log)

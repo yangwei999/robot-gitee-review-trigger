@@ -76,7 +76,7 @@ type botConfig struct {
 
 	CI ciConfig `json:"ci"`
 
-	CLA claConfig `json:"cla"`
+	CLALabel string `json:"cla_label" required:"true"`
 
 	Review reviewConfig `json:"review"`
 
@@ -85,10 +85,6 @@ type botConfig struct {
 
 	doc              string `json:"-"`
 	commandsEndpoint string `json:"-"`
-}
-
-type claConfig struct {
-	LabelForCLAPassed string `json:"label_for_cla_passed,omitempty"`
 }
 
 func (c *botConfig) setDefault() {

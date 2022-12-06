@@ -22,8 +22,8 @@ const (
 )
 
 var (
-	validReviewCmds      = sets.NewString(cmdLGTM, cmdLBTM, cmdAPPROVE, cmdReject)
-	validAuthorCmds      = sets.NewString(cmdCanReview)
+	reviewCmds           = sets.NewString(cmdLGTM, cmdLBTM, cmdAPPROVE, cmdReject)
+	authorCmds           = sets.NewString(cmdCanReview)
 	negativeCmds         = sets.NewString(cmdReject, cmdLBTM)
 	positiveCmds         = sets.NewString(cmdAPPROVE, cmdLGTM)
 	cmdBelongsToApprover = sets.NewString(cmdAPPROVE, cmdReject)
@@ -40,14 +40,6 @@ func canApplyCmd(cmd string, isPRAuthor, isApprover, allowSelfApprove bool) bool
 		return isApprover && (allowSelfApprove || !isPRAuthor)
 	}
 	return true
-}
-
-func parseCommand(comment string) sets.String {
-	r := sets.NewString()
-	for _, match := range commandRegex.FindAllStringSubmatch(comment, -1) {
-		r.Insert(strings.ToUpper(match[1]))
-	}
-	return r
 }
 
 type reviewSummary struct {
@@ -107,38 +99,6 @@ func genReviewSummary(cmds []reviewCommand) reviewSummary {
 	}
 }
 
-func getReviewCommand(cmds []string, author string, isValidCmd func(cmd, author string) bool) (validCmd string, invalidCmd string) {
-	if len(cmds) == 0 {
-		return
-	}
-
-	negatives := map[string]bool{}
-	positives := map[string]bool{}
-
-	for _, cmd := range cmds {
-		if !isValidCmd(cmd, author) {
-			if invalidCmd == "" {
-				invalidCmd = cmd
-			}
-			continue
-		}
-
-		validCmd = cmd
-
-		if negativeCmds.Has(cmd) {
-			negatives[cmd] = true
-		}
-		if positiveCmds.Has(cmd) {
-			positives[cmd] = true
-		}
-	}
-
-	if len(negatives) == 0 && positives[cmdAPPROVE] {
-		validCmd = cmdAPPROVE
-	}
-	return
-}
-
 type reviewResult struct {
 	isRejected  bool
 	isApproved  bool
@@ -194,4 +154,78 @@ type iPRInfo interface {
 	hasLabel(string) bool
 	getAuthor() string
 	getHeadSHA() string
+}
+
+func newCommentInfo(comment, commenter string) *commentInfo {
+	info := &commentInfo{
+		comment:    comment,
+		commenter:  normalizeLogin(commenter),
+		authorCmds: sets.NewString(),
+		reviewCmds: sets.NewString(),
+	}
+	for _, match := range commandRegex.FindAllStringSubmatch(comment, -1) {
+		cmd := strings.ToUpper(match[1])
+
+		if reviewCmds.Has(cmd) {
+			info.reviewCmds.Insert(cmd)
+		}
+
+		if authorCmds.Has(cmd) {
+			info.authorCmds.Insert(cmd)
+		}
+	}
+
+	return info
+}
+
+type commentInfo struct {
+	comment    string
+	commenter  string
+	authorCmds sets.String
+	reviewCmds sets.String
+}
+
+func (c *commentInfo) hasReviewCmd() bool {
+	return len(c.reviewCmds) > 0
+}
+
+func (c *commentInfo) hasCanReviewCmd() bool {
+	return c.authorCmds.Has(cmdCanReview)
+}
+
+func (c *commentInfo) hasAssignCmd() bool {
+	return false
+}
+
+func (c *commentInfo) validateReviewCmd(isValidCmd func(cmd, author string) bool) (validCmd string, invalidCmd string) {
+	cmds := c.reviewCmds.UnsortedList()
+	if len(cmds) == 0 {
+		return
+	}
+
+	negatives := map[string]bool{}
+	positives := map[string]bool{}
+
+	for _, cmd := range cmds {
+		if !isValidCmd(cmd, c.commenter) {
+			if invalidCmd == "" {
+				invalidCmd = cmd
+			}
+			continue
+		}
+
+		validCmd = cmd
+
+		if negativeCmds.Has(cmd) {
+			negatives[cmd] = true
+		}
+		if positiveCmds.Has(cmd) {
+			positives[cmd] = true
+		}
+	}
+
+	if len(negatives) == 0 && positives[cmdAPPROVE] {
+		validCmd = cmdAPPROVE
+	}
+	return
 }

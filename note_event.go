@@ -7,7 +7,6 @@ import (
 	"github.com/opensourceways/community-robot-lib/giteeclient"
 	sdk "github.com/opensourceways/go-gitee/gitee"
 	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func (bot *robot) processNoteEvent(e *sdk.NoteEvent, cfg *botConfig, log *logrus.Entry) error {
@@ -15,32 +14,34 @@ func (bot *robot) processNoteEvent(e *sdk.NoteEvent, cfg *botConfig, log *logrus
 		return nil
 	}
 
-	eventInfo := bot.NewNoteEventInfo(e)
 	if e.IsCreatingCommentEvent() && e.GetCommenter() != bot.botName {
+		info := newCommentInfo(e.Comment.Body, e.GetCommenter())
 
 		mr := multiError()
-		if eventInfo.hasReviewCmd() {
-			err := bot.handleReviewComment(cfg, eventInfo, log)
+		if info.hasReviewCmd() {
+			err := bot.handleReviewComment(e, cfg, info, log)
 			mr.AddError(err)
 		}
-		if eventInfo.hasCanReviewCmd() {
-			err := bot.handleCanReviewComment(cfg, eventInfo, log)
+
+		if info.hasCanReviewCmd() {
+			err := bot.handleCanReviewComment(cfg, e, log)
 			mr.AddError(err)
 		}
+
 		return mr.Err()
 	}
 
-	return bot.handleCIStatusComment(eventInfo, cfg, log)
+	return bot.handleCIStatusComment(e, cfg, log)
 }
 
-func (bot *robot) handleReviewComment(e *NoteEventInfo, cfg *botConfig, log *logrus.Entry) error {
+func (bot *robot) handleReviewComment(e *sdk.NoteEvent, cfg *botConfig, cInfo *commentInfo, log *logrus.Entry) error {
 	org, repo := e.GetOrgRepo()
 	owner, err := bot.genRepoOwner(org, repo, e.GetPRBaseRef())
 	if err != nil {
 		return err
 	}
 
-	prInfo := prInfoOnNoteEvent{e.NoteEvent}
+	prInfo := prInfoOnNoteEvent{e}
 	pr, err := bot.genPullRequest(prInfo, getAssignees(e.GetPullRequest()), owner)
 	if err != nil {
 		return err
@@ -52,7 +53,7 @@ func (bot *robot) handleReviewComment(e *NoteEventInfo, cfg *botConfig, log *log
 		reviewers: owner.AllReviewers(),
 	}
 
-	cmd, validReview := bot.isValidReview(cfg.commandsEndpoint, stats, e, log)
+	cmd, validReview := bot.isValidReview(cfg.commandsEndpoint, stats, e, cInfo, log)
 	if !validReview {
 		return nil
 	}
@@ -73,18 +74,21 @@ func (bot *robot) handleReviewComment(e *NoteEventInfo, cfg *botConfig, log *log
 	}
 
 	oldTips := info.reviewGuides(bot.botName)
-	rs, rr := info.doStats(stats, bot.botName, e)
+	rs, rr := info.doStats(stats, bot.botName)
 
 	return pa.do(oldTips, cmd, rs, rr, bot.botName)
 }
 
 func (bot *robot) isValidReview(
-	commandEndpoint string, stats *reviewStats, e *NoteEventInfo, log *logrus.Entry,
+	commandEndpoint string,
+	stats *reviewStats,
+	e *sdk.NoteEvent,
+	cInfo *commentInfo,
+	log *logrus.Entry,
 ) (string, bool) {
 	commenter := normalizeLogin(e.GetCommenter())
 
-	cmd, invalidCmd := getReviewCommand(e.cmds.UnsortedList(), commenter, stats.genCheckCmdFunc())
-
+	cmd, invalidCmd := cInfo.validateReviewCmd(stats.genCheckCmdFunc())
 	validReview := cmd != "" && stats.isReviewer(commenter)
 
 	if !validReview {
@@ -107,7 +111,7 @@ func (bot *robot) isValidReview(
 
 		bot.client.CreatePRComment(
 			org, repo, info.getNumber(),
-			giteeclient.GenResponseWithReference(e.NoteEvent, s),
+			giteeclient.GenResponseWithReference(e, s),
 		)
 	}
 
@@ -115,11 +119,12 @@ func (bot *robot) isValidReview(
 }
 
 //handleCanReviewComment handle the can-review comment send by author
-func (bot *robot) handleCanReviewComment(cfg *botConfig, e *NoteEventInfo, log *logrus.Entry) error {
-	if !e.isAuthor() {
+func (bot *robot) handleCanReviewComment(cfg *botConfig, e *sdk.NoteEvent, log *logrus.Entry) error {
+	if e.GetCommenter() != e.GetPRAuthor() {
 		return nil
 	}
-	prInfo := prInfoOnNoteEvent{e.NoteEvent}
+
+	prInfo := prInfoOnNoteEvent{e}
 	if prInfo.hasLabel(labelCanReview) {
 		return nil
 	}
@@ -129,7 +134,7 @@ func (bot *robot) handleCanReviewComment(cfg *botConfig, e *NoteEventInfo, log *
 
 		return bot.client.CreatePRComment(
 			org, repo, prInfo.getNumber(),
-			giteeclient.GenResponseWithReference(e.NoteEvent, tip),
+			giteeclient.GenResponseWithReference(e, tip),
 		)
 	}
 
@@ -137,48 +142,18 @@ func (bot *robot) handleCanReviewComment(cfg *botConfig, e *NoteEventInfo, log *
 }
 
 func (bot *robot) labelCheckTip(cfg *botConfig, prInfo prInfoOnNoteEvent) string {
-	commonTip := "You can only comment /can-review when you have signed %s,\n" +
-		"You can only comment /can-review when the label of %s is available."
-	var tip string
 	if !bot.ciCheck(cfg, prInfo) {
-		tip = fmt.Sprintf(commonTip, "ci", cfg.CI.LabelForCIPassed)
+		tip := "You can only comment /can-review when the label of %s is available."
+		return fmt.Sprintf(tip, cfg.CI.LabelForCIPassed)
 	}
-	if !prInfo.hasLabel(cfg.CLA.LabelForCLAPassed) {
-		tip = fmt.Sprintf(commonTip, "cla", cfg.CLA.LabelForCLAPassed)
+
+	if !prInfo.hasLabel(cfg.CLALabel) {
+		return "You can only comment /can-review when you have signed cla"
 	}
-	return tip
+
+	return ""
 }
 
 func (bot *robot) ciCheck(cfg *botConfig, prInfo prInfoOnNoteEvent) bool {
 	return cfg.CI.NoCI || prInfo.hasLabel(cfg.CI.LabelForCIPassed)
-}
-
-type NoteEventInfo struct {
-	*sdk.NoteEvent
-	cmds sets.String
-}
-
-func (bot *robot) NewNoteEventInfo(e *sdk.NoteEvent) *NoteEventInfo {
-	cmds := parseCommand(e.GetComment().GetBody())
-
-	return &NoteEventInfo{
-		e,
-		cmds,
-	}
-}
-
-func (n *NoteEventInfo) hasReviewCmd() bool {
-	return len(n.cmds.Intersection(validReviewCmds)) > 0
-}
-
-func (n *NoteEventInfo) hasCanReviewCmd() bool {
-	return n.cmds.Has(cmdCanReview)
-}
-
-func (n *NoteEventInfo) hasAssignCmd() bool {
-	return false
-}
-
-func (n *NoteEventInfo) isAuthor() bool {
-	return n.GetCommenter() == n.GetPRAuthor()
 }

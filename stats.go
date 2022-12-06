@@ -24,10 +24,9 @@ func (rs reviewStats) StatReview(
 	comments []sdk.PullRequestComments,
 	startTime time.Time,
 	botName string,
-	eventInfo *NoteEventInfo,
 ) (reviewSummary, reviewResult) {
 
-	commands := rs.filterComments(comments, startTime, botName, eventInfo)
+	commands := rs.filterComments(comments, startTime, botName)
 	if len(commands) == 0 {
 		return reviewSummary{}, reviewResult{}
 	}
@@ -37,12 +36,7 @@ func (rs reviewStats) StatReview(
 	return r, genReviewResult(r, rs.pr.areAllFilesApproved, rs.cfg)
 }
 
-func (rs reviewStats) filterComments(
-	comments []sdk.PullRequestComments,
-	startTime time.Time,
-	botName string,
-	eventInfo *NoteEventInfo,
-) []reviewCommand {
+func (rs reviewStats) filterComments(comments []sdk.PullRequestComments, startTime time.Time, botName string) []reviewCommand {
 	isValidCmd := rs.genCheckCmdFunc()
 
 	newComments := rs.preTreatComments(comments, startTime, botName)
@@ -56,7 +50,8 @@ func (rs reviewStats) filterComments(
 			continue
 		}
 
-		if cmd, _ := getReviewCommand(eventInfo.cmds.UnsortedList(), c.author, isValidCmd); cmd != "" {
+		info := newCommentInfo(c.comment, c.author)
+		if cmd, _ := info.validateReviewCmd(isValidCmd); cmd != "" {
 			commands = append(commands, reviewCommand{command: cmd, author: c.author})
 			done[c.author] = true
 		}
