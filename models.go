@@ -227,4 +227,6 @@ type iPRInfo interface {
 	hasLabel(string) bool
 	getAuthor() string
 	getHeadSHA() string
+	getUrl() string
+	getTitle() string
 }

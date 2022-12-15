@@ -4,10 +4,13 @@ import (
 	"fmt"
 
 	"github.com/opensourceways/community-robot-lib/config"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 type configuration struct {
 	ConfigItems []botConfig `json:"config_items,omitempty"`
+
+	RecommendReviewers RecommendReviewers `json:"recommend" required:"true"`
 
 	// CommandsEndpoint is the endpoint which enumerates the usage of commands.
 	CommandsEndpoint string `json:"commands_endpoint" required:"true"`
@@ -29,10 +32,15 @@ func (c *configuration) configFor(org, repo string) *botConfig {
 		v[i] = &items[i]
 	}
 
+	recommendCommunity := sets.NewString(c.RecommendReviewers.SupportCommunity...)
 	if i := config.Find(org, repo, v); i >= 0 {
 		items[i].doc = c.Doc
 		items[i].maintainers = c.Maintainers[org+"/"+repo]
 		items[i].commandsEndpoint = c.CommandsEndpoint
+
+		if _, ok := recommendCommunity[org]; ok {
+			items[i].recommendUrl = c.RecommendReviewers.Url
+		}
 
 		return &items[i]
 	}
@@ -89,6 +97,12 @@ type botConfig struct {
 	doc              string   `json:"-"`
 	maintainers      []string `json:"-"`
 	commandsEndpoint string   `json:"-"`
+	recommendUrl     string   `json:"-"`
+}
+
+type RecommendReviewers struct {
+	Url              string   `json:"url"`
+	SupportCommunity []string `json:"support_community"`
 }
 
 func (c *botConfig) setDefault() {
