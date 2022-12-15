@@ -26,13 +26,13 @@ type RecommendResponse struct {
 	Data []string `json:"data"`
 }
 
-func getRecommendReviewers(owner repoowners.RepoOwner, pr iPRInfo, url string) ([]string, error) {
+func getRecommendReviewers(reviewers []string, pr iPRInfo, url string) ([]string, error) {
 	org, _ := pr.getOrgAndRepo()
 	requestData := RecommendRequest{
 		Community: org,
 		PrUrl:     pr.getUrl(),
 		PrTitle:   pr.getTitle(),
-		Reviewers: owner.AllReviewers().UnsortedList(),
+		Reviewers: reviewers,
 	}
 
 	payload, err := json.Marshal(requestData)

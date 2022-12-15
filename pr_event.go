@@ -117,15 +117,16 @@ func (bot *robot) addReviewNotification(pr iPRInfo, cfg *botConfig, log *logrus.
 		return err
 	}
 
-	var reviewers []string
-	if cfg.recommendUrl != "" {
-		reviewers, err = getRecommendReviewers(owner, pr, cfg.recommendUrl)
-	} else {
-		reviewers, err = suggestReviewers(bot.client, owner, pr, cfg.Review.TotalNumberOfReviewers, log)
-	}
-
+	reviewers, err := suggestReviewers(bot.client, owner, pr, cfg.Review.TotalNumberOfReviewers, log)
 	if err != nil {
 		return fmt.Errorf("suggest reviewers, err: %s", err.Error())
+	}
+
+	if cfg.recommendUrl != "" {
+		reviewers, err = getRecommendReviewers(reviewers, pr, cfg.recommendUrl)
+		if err != nil {
+			return fmt.Errorf("recommend reviewers, err: %s", err.Error())
+		}
 	}
 
 	if len(reviewers) == 0 {
