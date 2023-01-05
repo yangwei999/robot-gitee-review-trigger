@@ -160,7 +160,7 @@ func (bot *robot) resetToReview(pr iPRInfo, cfg *botConfig, toKeep []string, log
 }
 
 func (bot *robot) resetLabels(pr iPRInfo, cfg *botConfig, toKeep []string) error {
-	rmls, err := updateAndReturnRemovedLabels(bot.client, pr, toKeep...)
+	rmls, err := removeAllLabels(bot.client, pr, toKeep)
 	if err != nil {
 		return err
 	}

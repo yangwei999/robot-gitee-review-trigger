@@ -5,11 +5,19 @@ import (
 )
 
 func updatePRLabel(c ghclient, pr iPRInfo, keep ...string) error {
-	_, err := updateAndReturnRemovedLabels(c, pr, keep...)
+	all := sets.NewString(labelApproved, labelLGTM, labelRequestChange)
+	_, err := updateAndReturnRemovedLabels(c, pr, all, keep...)
+
 	return err
 }
 
-func updateAndReturnRemovedLabels(c ghclient, pr iPRInfo, keep ...string) ([]string, error) {
+func removeAllLabels(c ghclient, pr iPRInfo, keep []string) ([]string, error) {
+	all := sets.NewString(labelApproved, labelLGTM, labelApproved, labelRequestChange)
+
+	return updateAndReturnRemovedLabels(c, pr, all, keep...)
+}
+
+func updateAndReturnRemovedLabels(c ghclient, pr iPRInfo, all sets.String, keep ...string) ([]string, error) {
 	l := labelUpdating{
 		c:  c,
 		pr: pr,
@@ -20,8 +28,6 @@ func updateAndReturnRemovedLabels(c ghclient, pr iPRInfo, keep ...string) ([]str
 	if err := l.addLabels(keep...); err != nil {
 		mr.AddError(err)
 	}
-
-	all := sets.NewString(labelApproved, labelLGTM, labelCanReview, labelRequestChange)
 
 	toRemove := all.Delete(keep...).UnsortedList()
 
