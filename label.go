@@ -48,7 +48,13 @@ func (l labelUpdating) addLabels(labels ...string) error {
 
 	org, repo := pr.getOrgAndRepo()
 
-	return l.c.AddMultiPRLabel(org, repo, pr.getNumber(), labels)
+	mr := multiError()
+	for _, label := range toAdd {
+		err := l.c.AddPRLabel(org, repo, pr.getNumber(), label)
+		mr.AddError(err)
+	}
+
+	return mr.Err()
 }
 
 func (l labelUpdating) removeLabels(labels []string) ([]string, error) {
