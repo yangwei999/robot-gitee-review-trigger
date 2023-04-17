@@ -33,6 +33,7 @@ type iClient interface {
 	UpdatePRComment(org, repo string, commentID int32, comment string) error
 	GetPullRequestChanges(org, repo string, number int32) ([]sdk.PullRequestFiles, error)
 	ListCollaborators(org, repo string) ([]sdk.ProjectMember, error)
+	ListPROperationLogs(org, repo string, number int32) ([]sdk.OperateLog, error)
 }
 
 type robot struct {
