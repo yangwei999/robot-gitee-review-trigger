@@ -60,30 +60,7 @@ func (bot *robot) processPREvent(e *sdk.PullRequestEvent, cfg *botConfig, log *l
 		return bot.resetToReview(prInfoOnPREvent{e}, cfg, log)
 
 	case sdk.PRActionUpdatedLabel:
-		pr := prInfoOnPREvent{e}
-		if pr.hasLabel(labelCanReview) {
-			return nil
-		}
-
-		org, repo := pr.getOrgAndRepo()
-		logs, err := bot.client.ListPROperationLogs(org, repo, pr.getNumber())
-		if err != nil {
-			return err
-		}
-
-		for _, l := range cfg.LabelsForBasicCIPassed {
-			if !strings.Contains(logs[0].Content, l) {
-				continue
-			}
-
-			if !strings.Contains(logs[0].Content, "添加了") {
-				continue
-			}
-
-			return bot.client.CreatePRComment(org, repo, pr.getNumber(),
-				"You can comment **/can-review** to start reviewing, the pr is ready",
-			)
-		}
+		return bot.commentAfterCI(prInfoOnPREvent{e}, cfg)
 	}
 
 	return nil
@@ -219,6 +196,34 @@ func (bot *robot) deleteReviewNotification(pr iPRInfo) error {
 	cs := giteeclient.FindBotComment(comments, bot.botName, isNotificationComment)
 	for _, c := range cs {
 		_ = bot.client.DeletePRComment(org, repo, c.CommentID)
+	}
+
+	return nil
+}
+
+func (bot *robot) commentAfterCI(pr iPRInfo, cfg *botConfig) error {
+	if pr.hasLabel(labelCanReview) {
+		return nil
+	}
+
+	org, repo := pr.getOrgAndRepo()
+	logs, err := bot.client.ListPROperationLogs(org, repo, pr.getNumber())
+	if err != nil {
+		return err
+	}
+
+	for _, l := range cfg.LabelsForBasicCIPassed {
+		if !strings.Contains(logs[0].Content, l) {
+			continue
+		}
+
+		if !strings.Contains(logs[0].Content, "添加了") {
+			continue
+		}
+
+		return bot.client.CreatePRComment(org, repo, pr.getNumber(),
+			"You can comment **/can-review** to start reviewing, the pr is ready",
+		)
 	}
 
 	return nil
