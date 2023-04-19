@@ -51,7 +51,7 @@ func (pr prInfoOnPREvent) getTitle() string {
 
 func (bot *robot) processPREvent(e *sdk.PullRequestEvent, cfg *botConfig, log *logrus.Entry) error {
 	switch sdk.GetPullRequestAction(e) {
-	case sdk.PRActionOpened:
+	case sdk.ActionOpen:
 		if cfg.NeedWelcome {
 			return bot.welcome(prInfoOnPREvent{e}, cfg)
 		}
@@ -213,11 +213,8 @@ func (bot *robot) commentAfterCI(pr iPRInfo, cfg *botConfig) error {
 	}
 
 	for _, l := range cfg.LabelsForBasicCIPassed {
-		if !strings.Contains(logs[0].Content, l) {
-			continue
-		}
-
-		if !strings.Contains(logs[0].Content, "添加了") {
+		if !strings.Contains(logs[0].Content, l) ||
+			logs[0].ActionType != sdk.ActionAddLabel {
 			continue
 		}
 

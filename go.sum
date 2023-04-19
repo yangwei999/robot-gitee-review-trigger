@@ -278,6 +278,8 @@ github.com/opensourceways/community-robot-lib v0.0.0-20220118064921-28924d0a1246
 github.com/opensourceways/go-gitee v0.0.0-20211230094517-effa55336a8b/go.mod h1:yvVsEMhp7frMblzN1sco4C7cRlnlpqkkn3O2JQNdRu0=
 github.com/opensourceways/go-gitee v0.0.0-20220118023153-0c41490fb43b h1:iVRo+1ZmLYfDA6beHuDoJeteGtDqzUIbXN5EdQ9z0Bo=
 github.com/opensourceways/go-gitee v0.0.0-20220118023153-0c41490fb43b/go.mod h1:yvVsEMhp7frMblzN1sco4C7cRlnlpqkkn3O2JQNdRu0=
+github.com/opensourceways/go-gitee v0.0.0-20220714075315-cb246f1dfb96 h1:pIQtlAOeOu/RN88gI0dy2DCmJLjZ1xklbZ3FYNJnMjs=
+github.com/opensourceways/go-gitee v0.0.0-20220714075315-cb246f1dfb96/go.mod h1:yvVsEMhp7frMblzN1sco4C7cRlnlpqkkn3O2JQNdRu0=
 github.com/opensourceways/repo-file-cache v0.0.0-20220111033841-e731b3bb770a h1:KP4RWVvx3KmiM1CjQLFnhmfGXkXBUh8j9k4QyZQtCFg=
 github.com/opensourceways/repo-file-cache v0.0.0-20220111033841-e731b3bb770a/go.mod h1:A2BoPC0Jquv5d3noGmahyYICVRWqTEkIpg5IABUthxU=
 github.com/opensourceways/repo-owners-cache v0.0.0-20220111071329-b9e81e7cc107 h1:JIpwpyUmgifAXxsVx3sT5Q7c7hoF52q0XQI7WslToKo=
