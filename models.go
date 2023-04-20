@@ -225,6 +225,7 @@ type iPRInfo interface {
 	getNumber() int32
 	getTargetBranch() string
 	hasLabel(string) bool
+	hasAnyLabel([]string) bool
 	getAuthor() string
 	getHeadSHA() string
 	getUrl() string

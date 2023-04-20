@@ -206,21 +206,30 @@ func (bot *robot) commentAfterCI(pr iPRInfo, cfg *botConfig) error {
 		return nil
 	}
 
+	if !pr.hasAnyLabel(cfg.LabelsForBasicCIPassed) {
+		return nil
+	}
+
 	org, repo := pr.getOrgAndRepo()
 	logs, err := bot.client.ListPROperationLogs(org, repo, pr.getNumber())
 	if err != nil {
 		return err
 	}
 
-	for _, l := range cfg.LabelsForBasicCIPassed {
-		if !strings.Contains(logs[0].Content, l) ||
-			logs[0].ActionType != sdk.ActionAddLabel {
-			continue
-		}
+	for _, log := range logs {
+		for _, label := range cfg.LabelsForBasicCIPassed {
+			if !strings.Contains(log.Content, label) {
+				continue
+			}
 
-		return bot.client.CreatePRComment(org, repo, pr.getNumber(),
-			"You can comment **/can-review** to start reviewing, the pr is ready",
-		)
+			if log.ActionType != sdk.ActionAddLabel {
+				return nil
+			}
+
+			return bot.client.CreatePRComment(org, repo, pr.getNumber(),
+				"You can comment **/can-review** to start reviewing, the pr is ready",
+			)
+		}
 	}
 
 	return nil

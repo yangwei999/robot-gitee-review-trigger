@@ -46,15 +46,7 @@ func (l labelUpdating) addLabels(labels ...string) error {
 		return nil
 	}
 
-	org, repo := pr.getOrgAndRepo()
-
-	mr := multiError()
-	for _, label := range toAdd {
-		err := l.c.AddPRLabel(org, repo, pr.getNumber(), label)
-		mr.AddError(err)
-	}
-
-	return mr.Err()
+	return l.addLabelsSeparately(pr, toAdd)
 }
 
 func (l labelUpdating) removeLabels(labels []string) ([]string, error) {
@@ -70,6 +62,18 @@ func (l labelUpdating) removeLabels(labels []string) ([]string, error) {
 	org, repo := pr.getOrgAndRepo()
 
 	return toRemove, l.c.RemovePRLabels(org, repo, pr.getNumber(), toRemove)
+}
+
+func (l labelUpdating) addLabelsSeparately(pr iPRInfo, labels []string) error {
+	org, repo := pr.getOrgAndRepo()
+
+	mr := multiError()
+	for _, label := range labels {
+		err := l.c.AddPRLabel(org, repo, pr.getNumber(), label)
+		mr.AddError(err)
+	}
+
+	return mr.Err()
 }
 
 func filterSlice(s []string, filter func(string) bool) []string {
