@@ -33,7 +33,7 @@ func (rs reviewStats) StatReview(
 
 	r := genReviewSummary(commands)
 
-	return r, genReviewResult(r, rs.pr.areAllFilesApproved, rs.cfg)
+	return r, genReviewResult(r, rs.pr.unApprovedFiles, rs.cfg)
 }
 
 func (rs reviewStats) filterComments(comments []sdk.PullRequestComments, startTime time.Time, botName string) []reviewCommand {

@@ -173,14 +173,16 @@ func checkReviewCommand(
 }
 
 type reviewResult struct {
-	isRejected  bool
-	isApproved  bool
-	isLGTM      bool
-	isLBTM      bool
-	needLGTMNum int
+	isRejected      bool
+	isApproved      bool
+	isLGTM          bool
+	isLBTM          bool
+	needLGTMNum     int
+	needApproveNum  int
+	unApprovedFiles []string
 }
 
-func genReviewResult(r reviewSummary, allFilesApproved func([]string, int) bool, cfg reviewConfig) reviewResult {
+func genReviewResult(r reviewSummary, unApprovedFiles func([]string, int) []string, cfg reviewConfig) reviewResult {
 	rr := reviewResult{}
 
 	if len(r.disagreedApprovers) > 0 {
@@ -190,8 +192,15 @@ func genReviewResult(r reviewSummary, allFilesApproved func([]string, int) bool,
 
 	an := len(r.agreedApprovers)
 
-	if allFilesApproved(r.agreedApprovers, cfg.NumberOfApprovers) {
-		rr.isApproved = an >= cfg.TotalNumberOfApprovers
+	rr.unApprovedFiles = unApprovedFiles(r.agreedApprovers, cfg.NumberOfApprovers)
+	if n := len(rr.unApprovedFiles); n == 0 {
+		if an >= cfg.TotalNumberOfApprovers {
+			rr.isApproved = true
+		} else {
+			rr.needApproveNum = cfg.TotalNumberOfApprovers - an
+		}
+	} else if n > 5 {
+		rr.unApprovedFiles = rr.unApprovedFiles[:5]
 	}
 
 	rn := an + len(r.agreedReviewers)

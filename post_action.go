@@ -23,7 +23,6 @@ type actionParameter struct {
 	lastComment       string
 	n                 notificationComment
 	u                 func(...string) error
-	needLGTMNum       int
 }
 
 func (pa PostAction) do(oldComments []giteeclient.BotComment, lastComment string, rs reviewSummary, r reviewResult, botName string) error {
@@ -49,10 +48,14 @@ func (pa PostAction) do(oldComments []giteeclient.BotComment, lastComment string
 
 	param := &actionParameter{
 		lastComment:       lastComment,
-		needLGTMNum:       r.needLGTMNum,
 		deleteOldComments: deleteOldComments,
 
-		n: newNotificationComment(&rs, oldTips, botName),
+		n: notificationComment{
+			rs:      &rs,
+			rr:      &r,
+			oldTips: oldTips,
+			botName: botName,
+		},
 
 		u: func(keep ...string) error {
 			return updatePRLabel(pa.c, pa.pr.info, keep...)
@@ -77,10 +80,10 @@ func (pa PostAction) do(oldComments []giteeclient.BotComment, lastComment string
 		return err
 	}
 
-	return pa.handle(param, r)
+	return pa.handle(param, &r)
 }
 
-func (pa PostAction) handle(param *actionParameter, r reviewResult) error {
+func (pa PostAction) handle(param *actionParameter, r *reviewResult) error {
 	if r.isRejected {
 		return pa.reject(param)
 	}
@@ -94,17 +97,17 @@ func (pa PostAction) handle(param *actionParameter, r reviewResult) error {
 	}
 
 	if r.isLGTM {
-		return pa.lgtm(param)
+		return pa.lgtm(param, r)
 	}
 
 	if r.isApproved {
-		return pa.approve(param)
+		return pa.approve(param, r)
 	}
 
-	return pa.reviewing(param)
+	return pa.reviewing(param, r)
 }
 
-func (pa PostAction) reviewing(p *actionParameter) error {
+func (pa PostAction) reviewing(p *actionParameter, r *reviewResult) error {
 	if !pa.isStartingReview {
 		p.deleteOldComments()
 		return p.u()
@@ -121,7 +124,7 @@ func (pa PostAction) reviewing(p *actionParameter) error {
 		sr = pa.suggestReviewers()
 	}
 
-	s := p.n.reviewingComment(p.needLGTMNum, sr)
+	s := p.n.reviewingComment(r.needLGTMNum, sr)
 	if err := p.writeNotification(s); err != nil {
 		mr.AddError(err)
 	}
@@ -159,7 +162,7 @@ func (pa PostAction) requestChange(p *actionParameter) error {
 	return mr.Err()
 }
 
-func (pa PostAction) lgtm(p *actionParameter) error {
+func (pa PostAction) lgtm(p *actionParameter, r *reviewResult) error {
 	mr := multiError()
 
 	if err := p.u(labelLGTM); err != nil {
@@ -175,14 +178,16 @@ func (pa PostAction) lgtm(p *actionParameter) error {
 	lastComment := p.lastComment
 	needSuggestApprover := oldTips == "" || !containsSuggestedApprover(oldTips) || lastComment == cmdAPPROVE
 
-	var sa []string
-	var ownersFiles []string
+	s := ""
 	if needSuggestApprover {
-		sa = pa.suggestApprovers(p.n.rs.agreedApprovers)
-		ownersFiles = pa.relevantOwnersFiles(p.n.rs.agreedApprovers)
+		sa := pa.suggestApprovers(p.n.rs.agreedApprovers)
+		ownersFiles := pa.relevantOwnersFiles(r.unApprovedFiles)
+
+		s = p.n.lgtmComment(sa, ownersFiles)
+	} else {
+		s = p.n.lgtmComment(nil, nil)
 	}
 
-	s := p.n.lgtmComment(sa, ownersFiles)
 	if err := p.writeNotification(s); err != nil {
 		mr.AddError(err)
 	}
@@ -190,7 +195,7 @@ func (pa PostAction) lgtm(p *actionParameter) error {
 	return mr.Err()
 }
 
-func (pa PostAction) approve(p *actionParameter) error {
+func (pa PostAction) approve(p *actionParameter, r *reviewResult) error {
 	mr := multiError()
 
 	if err := p.u(labelApproved); err != nil {
@@ -210,7 +215,7 @@ func (pa PostAction) approve(p *actionParameter) error {
 		sr = pa.suggestReviewers()
 	}
 
-	s := p.n.approvedComment(p.needLGTMNum, sr)
+	s := p.n.approvedComment(r.needLGTMNum, sr)
 	if err := p.writeNotification(s); err != nil {
 		mr.AddError(err)
 	}
@@ -242,10 +247,7 @@ func (pa PostAction) suggestApprovers(currentApprovers []string) []string {
 	)
 }
 
-func (pa PostAction) relevantOwnersFiles(currentApprovers []string) []string {
-	// Pass pa.cfg.Review.TotalNumberOfApprovers instead of pa.cfg.Review.NumberOfApprovers
-	// Because it can cover all the case that it can't add label of approve.
-	files := pa.pr.unApprovedFiles(currentApprovers, pa.cfg.Review.TotalNumberOfApprovers)
+func (pa PostAction) relevantOwnersFiles(files []string) []string {
 	if len(files) == 0 {
 		return nil
 	}

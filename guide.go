@@ -31,11 +31,17 @@ func newNotificationComment(rs *reviewSummary, s, botName string) notificationCo
 
 type notificationComment struct {
 	rs      *reviewSummary
+	rr      *reviewResult
 	oldTips string
 	botName string
 }
 
-func (n notificationComment) genApproveTips(num int, approvers, ownersFiles []string) string {
+func (n notificationComment) genApproveTips(approvers, ownersFiles []string) string {
+	an := ""
+	if n.rr.needApproveNum > 0 {
+		an = fmt.Sprintf("%d ", n.rr.needApproveNum)
+	}
+
 	of := ""
 	if len(ownersFiles) > 0 {
 		sort.Strings(ownersFiles)
@@ -46,10 +52,20 @@ func (n notificationComment) genApproveTips(num int, approvers, ownersFiles []st
 		)
 	}
 
+	uf := ""
+	if len(n.rr.unApprovedFiles) > 0 {
+		sort.Strings(n.rr.unApprovedFiles)
+
+		uf = fmt.Sprintf(
+			"\nThe unapproved files are as bellow.\n- %s\n",
+			strings.Join(n.rr.unApprovedFiles, "\n- "),
+		)
+	}
+
 	return fmt.Sprintf(
-		"%s, it still needs approvers to comment /approve.%s\nI suggest these approvers( %s ) to approve your PR.\nYou can assign the PR to them by writing a comment like this `/assign @%s`. Please, replace `%s` with the correct approver's name.",
+		"%s, it still needs %sapprovers to comment /approve.%s%s\nI suggest these approvers( %s ) to approve your PR.\nYou can assign the PR to them by writing a comment like this `/assign @%s`. Please, replace `%s` with the correct approver's name.",
 		notificationApprovePart2,
-		of,
+		an, uf, of,
 		toReviewerList(approvers),
 		n.botName,
 		n.botName,
@@ -188,8 +204,8 @@ func (n notificationComment) reviewInfo() string {
 }
 
 func (n notificationComment) getPart2OfApproved(suggestedApprovers, ownersFiles []string) string {
-	if num := len(suggestedApprovers); num > 0 {
-		return n.genPart2(n.genApproveTips(num, suggestedApprovers, ownersFiles))
+	if len(suggestedApprovers) > 0 {
+		return n.genPart2(n.genApproveTips(suggestedApprovers, ownersFiles))
 	}
 
 	if !containsSuggestedApprover(n.oldTips) {
