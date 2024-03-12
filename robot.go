@@ -34,6 +34,7 @@ type iClient interface {
 	GetPullRequestChanges(org, repo string, number int32) ([]sdk.PullRequestFiles, error)
 	ListCollaborators(org, repo string) ([]sdk.ProjectMember, error)
 	ListPROperationLogs(org, repo string, number int32) ([]sdk.OperateLog, error)
+	UpdatePullRequest(org, repo string, number int32, param sdk.PullRequestUpdateParam) (sdk.PullRequest, error)
 }
 
 type robot struct {

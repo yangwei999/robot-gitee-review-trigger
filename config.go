@@ -87,6 +87,9 @@ type botConfig struct {
 	// NeedWelcome specifies whether to add welcome comment.
 	NeedWelcome bool `json:"need_welcome,omitempty"`
 
+	// CheckPRInfo  specifies whether to update tester number and add label.
+	CheckPRInfo bool `json:"check_pr_info,omitempty"`
+
 	doc              string   `json:"-"`
 	maintainers      []string `json:"-"`
 	commandsEndpoint string   `json:"-"`

@@ -20,12 +20,22 @@ func (bot *robot) processNoteEvent(e *sdk.NoteEvent, cfg *botConfig, log *logrus
 	}
 
 	cmds := parseCommentCommands(e.GetComment().GetBody())
+
 	info := &noteEventInfo{
 		NoteEvent: e,
 		cmds:      sets.NewString(cmds...),
 	}
 
 	mr := multiError()
+
+	if info.hasCheckPRCmd() && cfg.CheckPRInfo {
+		text := e.GetPullRequest().GetBody()
+		org, repo := e.GetOrgRepo()
+		author := e.GetPRAuthor()
+		number := e.GetPRNumber()
+		err := bot.setTestNumber(text, org, repo, author, number)
+		mr.AddError(err)
+	}
 
 	if info.hasReviewCmd() {
 		err := bot.handleReviewComment(info, cfg, log)
@@ -134,6 +144,10 @@ func (n *noteEventInfo) hasReviewCmd() bool {
 
 func (n *noteEventInfo) hasCanReviewCmd() bool {
 	return n.cmds.Has(cmdCanReview)
+}
+
+func (n *noteEventInfo) hasCheckPRCmd() bool {
+	return n.cmds.Has(cmdCheckPR)
 }
 
 func (n *noteEventInfo) isCommentedByPRAuthor() bool {

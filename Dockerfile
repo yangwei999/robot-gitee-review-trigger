@@ -22,4 +22,3 @@ USER review-trigger
 COPY  --chown=review-trigger --from=BUILDER /go/src/github.com/opensourceways/robot-gitee-review-trigger/robot-gitee-review-trigger /opt/app/robot-gitee-review-trigger
 
 ENTRYPOINT ["/opt/app/robot-gitee-review-trigger"]
-

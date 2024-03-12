@@ -15,6 +15,7 @@ const (
 	labelRequestChange = "request-change"
 
 	cmdCanReview = "CAN-REVIEW"
+	cmdCheckPR   = "CHECK-PR"
 
 	cmdLGTM    = "LGTM"
 	cmdLBTM    = "LBTM"

@@ -53,7 +53,15 @@ func (bot *robot) processPREvent(e *sdk.PullRequestEvent, cfg *botConfig, log *l
 	switch sdk.GetPullRequestAction(e) {
 	case sdk.ActionOpen:
 		if cfg.NeedWelcome {
-			return bot.welcome(prInfoOnPREvent{e}, cfg)
+			err := bot.welcome(prInfoOnPREvent{e}, cfg)
+			if err != nil {
+				log.Errorf("welcome failed: %v", err)
+			}
+		}
+		// check PR information and set test number
+		if cfg.CheckPRInfo {
+			org, repo := e.GetOrgRepo()
+			return bot.setTestNumber(e.GetBody(), org, repo, e.GetPRAuthor(), e.GetPRNumber())
 		}
 
 	case sdk.PRActionChangedSourceBranch:
