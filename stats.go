@@ -33,7 +33,7 @@ func (rs reviewStats) StatReview(
 
 	r := genReviewSummary(commands)
 
-	return r, genReviewResult(r, rs.pr.areAllFilesApproved, rs.cfg)
+	return r, genReviewResult(r, rs.pr.areAllFilesApproved, rs.pr.areAllFilesCommented, rs.cfg)
 }
 
 func (rs reviewStats) filterComments(comments []sdk.PullRequestComments, startTime time.Time, botName string) []reviewCommand {
@@ -117,4 +117,18 @@ func (rs reviewStats) numberOfReviewers() int {
 
 func (rs reviewStats) isReviewer(author string) bool {
 	return rs.reviewers.Has(author)
+}
+
+func (rs reviewStats) genCheckCmdFuncReview() func(cmd, author string) bool {
+	prAuthor := rs.pr.prAuthor()
+
+	return func(cmd, author string) bool {
+		return canApplyCmds(
+			cmd,
+			prAuthor == author,
+			rs.pr.isApprover(author),
+			rs.pr.isReviewwer(author),
+			rs.cfg.AllowSelfApprove,
+		)
+	}
 }

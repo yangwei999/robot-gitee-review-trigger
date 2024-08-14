@@ -59,7 +59,7 @@ func (bot *robot) handleReviewComment(e *noteEventInfo, cfg *botConfig, log *log
 		reviewers: owner.AllReviewers(),
 	}
 
-	cmd, validReview := bot.isValidReview(cfg.commandsEndpoint, stats, e, log)
+	cmd, validReview := bot.isValidReview(cfg, stats, e, log)
 	if !validReview {
 		return nil
 	}
@@ -86,9 +86,15 @@ func (bot *robot) handleReviewComment(e *noteEventInfo, cfg *botConfig, log *log
 }
 
 func (bot *robot) isValidReview(
-	commandEndpoint string, stats *reviewStats, e *noteEventInfo, log *logrus.Entry,
+	cfg *botConfig, stats *reviewStats, e *noteEventInfo, log *logrus.Entry,
 ) (string, bool) {
-	cmd, invalidCmd := e.checkReviewCmd(stats.genCheckCmdFunc())
+	var cmd, invalidCmd string
+
+	if cfg.NoParentOwners {
+		cmd, invalidCmd = e.checkReviewCmd(stats.genCheckCmdFuncReview())
+	} else {
+		cmd, invalidCmd = e.checkReviewCmd(stats.genCheckCmdFunc())
+	}
 
 	commenter := e.normalizedCommenter()
 	validReview := cmd != "" && stats.isReviewer(commenter)
@@ -108,7 +114,7 @@ func (bot *robot) isValidReview(
 		s := fmt.Sprintf(
 			"You can't comment `/%s`. Please see the [*Command Usage*](%s) to get detail.",
 			strings.ToLower(invalidCmd),
-			commandEndpoint,
+			cfg.commandsEndpoint,
 		)
 
 		bot.client.CreatePRComment(

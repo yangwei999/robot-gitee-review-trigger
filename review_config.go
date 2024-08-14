@@ -9,6 +9,10 @@ type reviewConfig struct {
 	// /approve at same time to approve a single module
 	NumberOfApprovers int `json:"number_of_approvers"`
 
+	// NumberOfReviewers is the min number of reviewers who commented
+	// /lgtm at same time to review a single module
+	NumberOfReviewers int `json:"number_of_reviewers"`
+
 	// TotalNumberOfApprovers is the min number of approvers who commented
 	// /approve at same time to add approved label
 	TotalNumberOfApprovers int `json:"total_number_of_approvers"`

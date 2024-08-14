@@ -8,11 +8,14 @@ import (
 
 func newPullRequest(pr iPRInfo, files, assignees []string, owner repoowners.RepoOwner) pullRequest {
 	fileApproverMap := map[string]sets.String{}
+	fileReviewerMap := map[string]sets.String{}
 	for _, path := range files {
 		fileApproverMap[path] = owner.Approvers(path)
+		fileReviewerMap[path] = owner.Reviewers(path)
 	}
 
 	m := map[string]sets.String{}
+	n := map[string]sets.String{}
 	for dir, v := range fileApproverMap {
 		for item := range v {
 			if _, ok := m[item]; !ok {
@@ -23,12 +26,24 @@ func newPullRequest(pr iPRInfo, files, assignees []string, owner repoowners.Repo
 		}
 	}
 
+	for dir, v := range fileReviewerMap {
+		for item := range v {
+			if _, ok := n[item]; !ok {
+				n[item] = sets.NewString(dir)
+			} else {
+				n[item].Insert(dir)
+			}
+		}
+	}
+
 	return pullRequest{
 		fileApproverMap: fileApproverMap,
 		approverFileMap: m,
 		files:           files,
 		assignees:       assignees,
 		info:            pr,
+		reviewerFileMap: n,
+		fileReviewerMap: fileReviewerMap,
 	}
 }
 
@@ -38,6 +53,8 @@ type pullRequest struct {
 	assignees       []string
 	fileApproverMap map[string]sets.String
 	approverFileMap map[string]sets.String
+	reviewerFileMap map[string]sets.String
+	fileReviewerMap map[string]sets.String
 }
 
 func (p pullRequest) isApprover(author string) bool {
@@ -108,4 +125,58 @@ func (p pullRequest) numberOfFiles() int {
 
 func (p pullRequest) prAuthor() string {
 	return normalizeLogin(p.info.getAuthor())
+}
+
+func (p pullRequest) isReviewwer(author string) bool {
+	_, b := p.fileReviewerMap[author]
+	return b
+}
+
+func (p pullRequest) areAllFilesCommented(agreedReviewers []string, num int) bool {
+	if num == 1 {
+		return p.areAllFilesReviewedBy(agreedReviewers)
+	}
+
+	records := p.stat(agreedReviewers)
+
+	if len(records) < p.numberOfFiles() {
+		return false
+	}
+
+	for _, n := range records {
+		if n < num {
+			return false
+		}
+	}
+	return true
+}
+
+func (p pullRequest) stat(agreedReviewers []string) map[string]int {
+	r := map[string]int{}
+	for _, a := range agreedReviewers {
+		for k := range p.filesReviewedBy(a) {
+			r[k] += 1
+		}
+	}
+	return r
+}
+
+func (p pullRequest) filesReviewedBy(author string) sets.String {
+	if v, b := p.reviewerFileMap[author]; b {
+		return v
+	}
+
+	return sets.String{}
+}
+
+func (p pullRequest) areAllFilesReviewedBy(reviewers []string) bool {
+	m := map[string]bool{}
+	for _, a := range reviewers {
+		for i := range p.filesReviewedBy(a) {
+			if !m[i] {
+				m[i] = true
+			}
+		}
+	}
+	return len(m) == p.numberOfFiles()
 }

@@ -42,6 +42,18 @@ func canApplyCmd(cmd string, isPRAuthor, isApprover, allowSelfApprove bool) bool
 	return true
 }
 
+func canApplyCmds(cmd string, isPRAuthor, isApprover, isReviewer, allowSelfApprove bool) bool {
+	switch cmd {
+	case cmdReject:
+		return isApprover && !isPRAuthor
+	case cmdLGTM:
+		return !isPRAuthor && (isApprover || isReviewer)
+	case cmdAPPROVE:
+		return isApprover && (allowSelfApprove || !isPRAuthor)
+	}
+	return true
+}
+
 func parseReviewCommand(comment string) (r []string) {
 	v := parseCommentCommands(comment)
 	if len(v) == 0 {
@@ -180,7 +192,8 @@ type reviewResult struct {
 	needLGTMNum int
 }
 
-func genReviewResult(r reviewSummary, allFilesApproved func([]string, int) bool, cfg reviewConfig) reviewResult {
+func genReviewResult(r reviewSummary, allFilesApproved func([]string, int) bool,
+	areAllFilesCommented func([]string, int) bool, cfg reviewConfig) reviewResult {
 	rr := reviewResult{}
 
 	if len(r.disagreedApprovers) > 0 {
@@ -195,10 +208,19 @@ func genReviewResult(r reviewSummary, allFilesApproved func([]string, int) bool,
 	}
 
 	rn := an + len(r.agreedReviewers)
+
 	f := func() {
 		rr.isLGTM = rn >= cfg.TotalNumberOfReviewers
 		if !rr.isLGTM {
 			rr.needLGTMNum = cfg.TotalNumberOfReviewers - rn
+		}
+	}
+
+	if cfg.NumberOfReviewers > 0 {
+		if !areAllFilesCommented(r.agreedReviewers, cfg.NumberOfReviewers) {
+			rr.isLGTM = false
+			rr.needLGTMNum = cfg.NumberOfReviewers
+			return rr
 		}
 	}
 
@@ -213,6 +235,7 @@ func genReviewResult(r reviewSummary, allFilesApproved func([]string, int) bool,
 	} else {
 		f()
 	}
+
 	return rr
 }
 

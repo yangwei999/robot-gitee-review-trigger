@@ -83,6 +83,9 @@ type botConfig struct {
 	// NeedWelcome specifies whether to add welcome comment.
 	NeedWelcome bool `json:"need_welcome,omitempty"`
 
+	// NoParentOwners decision whether the comment permission includes the parent directory owners
+	NoParentOwners bool `json:"no_parent_owners,omitempty"`
+
 	doc              string `json:"-"`
 	commandsEndpoint string `json:"-"`
 }
