@@ -1,12 +1,7 @@
 FROM openeuler/openeuler:23.03 as BUILDER
-ARG MERLIN_GOPROXY=https://goproxy.cn,direct
-ARG GH_USER
-ARG GH_TOKEN
-RUN go env -w GOPROXY=${MERLIN_GOPROXY} && go env -w GOPRIVATE=github.com/opensourceways
-RUN echo "machine github.com login ${GH_USER} password ${GH_TOKEN}" > $HOME/.netrc
-
 RUN dnf update -y && \
     dnf install -y golang && \
+    go env -w GOPROXY=https://goproxy.cn,direct
 
 MAINTAINER zengchen1024<chenzeng765@gmail.com>
 
